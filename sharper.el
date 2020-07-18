@@ -57,8 +57,8 @@
   "dotnet CLI wrapper, using Transient."
   :group 'extensions)
 
-(defcustom sharper-project-or-solution-extensions '("csproj" "sln")
-  "Regex to match filenames that are valid as project or solution files."
+(defcustom sharper-project-extensions '("csproj" "fsproj")
+  "Valid extensions for project files."
   :type 'list)
 
 ;; (defcustom panda-open-status-after-build 'ask
@@ -91,34 +91,66 @@
 ;; TODO: REMOVE IN FINAL PACKAGE
 
 
-;;------------------dotnet common-------------------------------------------------
+;;------------------Argument parsing----------------------------------------------
 
 (defun sharper--get-target (transient-params)
-  "Extract from TRANSIENT-PARAMS the \"TARGET\" argument."
-  (cl-some
-   (lambda (an-arg) (when (string-prefix-p "<TARGET>=" an-arg)
-                      (replace-regexp-in-string "<TARGET>="
-                                                ""
-                                                an-arg)))
-   transient-params))
+  "Extract & shell-quote from TRANSIENT-PARAMS the \"TARGET\" argument."
+  (shell-quote-argument
+   (cl-some
+    (lambda (an-arg) (when (string-prefix-p "<TARGET>=" an-arg)
+                       (replace-regexp-in-string "<TARGET>="
+                                                 ""
+                                                 an-arg)))
+    transient-params)))
 
-;; TODO: Convert them to list of arguments quoted for shell?
-;; (shell-quote-argument)
+(defun shaper--option-split-quote (an-option)
+  (let* ((equal-char-index (string-match "=" an-option))
+         (name (substring an-option 0 equal-char-index)))
+    (if equal-char-index
+        (cons name (shell-quote-argument
+                    (substring an-option (+ 1 equal-char-index))))
+      name)))
+
 (defun shaper--only-options (transient-params)
   "Extract from TRANSIENT-PARAMS the options (ie, start with -)."
-  (cl-remove-if-not (lambda (arg) (string-prefix-p "-" arg)) transient-params))
+  (mapcar #'shaper--option-split-quote
+          (cl-remove-if-not (lambda (arg) (string-prefix-p "-" arg))
+                            transient-params)))
+
+;;------------------dotnet common-------------------------------------------------
+
+(defun sharper--filename-proj-or-sln-p (filename)
+  "Return non-nil if FILENAME is a project or solution."
+  (let ((extension (file-name-extension filename)))
+    (or
+     (string= "sln" extension)
+     (member extension sharper-project-extensions))))
+
+(defun sharper--filename-proj-p (filename)
+  "Return non-nil if FILENAME is a project."
+  (let ((extension (file-name-extension filename)))
+    (member extension sharper-project-extensions)))
 
 (defun sharper--read-solution-or-project ()
   "Offer completion for project or solution files under the current project's root."
-  (interactive)
-  (labels ((proj-sln-p (filename) (member
-                                   (file-name-extension
-                                    filename)
-                                   sharper-project-or-solution-extensions)))
-    (let ((all-files (project-files (project-current t))))
-      (completing-read "Select project or solution: "
-                       all-files
-                       #'proj-sln-p))))
+  (let ((all-files (project-files (project-current t))))
+    (completing-read "Select project or solution: "
+                     all-files
+                     #'sharper--filename-proj-or-sln-p)))
+
+(defun sharper--read--project ()
+  "Offer completion for project files under the current project's root."
+  (let ((all-files (project-files (project-current t))))
+    (completing-read "Select project or solution: "
+                     all-files
+                     #'sharper--filename-proj-p)))
+
+(defun sharper--read-solution-or-project ()
+  "Offer completion for project or solution files under the current project's root."
+  (let ((all-files (project-files (project-current t))))
+    (completing-read "Select project or solution: "
+                     all-files
+                     #'sharper--filename-proj-or-sln-p)))
 
 (define-infix-argument sharper--option-target-projsln ()
   :description "<PROJECT>|<SOLUTION>"
@@ -138,7 +170,8 @@
   (let ((target (sharper--get-target transient-params))
         (args (shaper--only-options transient-params)))
     (message "target %s" target)
-    (message "args %s" (prin1-to-string args))))
+    (message "args %s" (prin1-to-string args))
+    (message "Whole thing%s" (prin1-to-string transient-params))))
 
 (defun dotnet-build ()
   "Build a .NET project."
