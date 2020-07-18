@@ -39,7 +39,7 @@
 (defun sharper--message (text)
   "Show a TEXT as a message and log it, if 'panda-less-messages' log only."
   (message "Sharper: %s" text)
-  (panda--log "Package message:" text "\n"))
+  (sharper--log "Package message:" text "\n"))
 
 (defun sharper--log (&rest to-log)
   "Append TO-LOG to the log buffer.  Intended for internal use only."
@@ -69,22 +69,40 @@
 ;;                  (const :tag "Ask" ask)))
 
 
-;; (defvar panda--auth-string nil "Caches the credentials for API calls.")
+;; Legend for the templates below:
+;; %t = TARGET
+;; %o = OPTIONS
+;; %s = SOLUTION
+;; %p = PROJECT
+;; %k = PACKAGE NAME
+(defvar sharper--build-template "dotnet build %t %o" "Template for \"dotnet build\" invocations.")
 ;; (defvar panda--projects-cache nil "Caches all the build projects the user has access to, in one go.")
 ;; (defvar panda--plans-cache nil "Caches the plans for each build project the user has access to, in one go.")
 ;; (defvar panda--branches-cache nil "Caches the branches for each plan, as they are requested.")
 ;; (defvar panda--deploys-cache nil "Caches the deployment projects (not build projects) in one single call to /deploy/project/all.")
 
+(defvar sharper--last-build nil "Last command used for a build")
 
 ;;------------------Main transient------------------------------------------------
-
 
 (define-transient-command sharper-main-transient ()
   "dotnet Menu"
   ["Actions"
    ;; global
-   ("b" "build" sharper-transient-build)])
+   ("B" "build" sharper-transient-build)
+   ("b" "repeat last build" sharper--last-build)])
 
+
+(defun sharper--last-build (&optional transient-params)
+  "Run \"dotnet build\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-build)))
+  (transient-set)
+  (if sharper--last-build
+      (progn
+        (sharper--log "Compilation command\n" sharper--last-build "\n")
+        (compile sharper--last-build))
+    (sharper-transient-build)))
 
 ;; TODO: REMOVE IN FINAL PACKAGE
 (define-key hoagie-keymap (kbd "n") 'sharper-main-transient)
@@ -95,13 +113,15 @@
 
 (defun sharper--get-target (transient-params)
   "Extract & shell-quote from TRANSIENT-PARAMS the \"TARGET\" argument."
-  (shell-quote-argument
-   (cl-some
-    (lambda (an-arg) (when (string-prefix-p "<TARGET>=" an-arg)
-                       (replace-regexp-in-string "<TARGET>="
-                                                 ""
-                                                 an-arg)))
-    transient-params)))
+  (let ((target (cl-some
+                 (lambda (an-arg) (when (string-prefix-p "<TARGET>=" an-arg)
+                                    (replace-regexp-in-string "<TARGET>="
+                                                              ""
+                                                              an-arg)))
+                 transient-params)))
+    (if target
+        (shell-quote-argument target)
+      target)))
 
 (defun shaper--option-split-quote (an-option)
   (let* ((equal-char-index (string-match "=" an-option))
@@ -117,7 +137,24 @@
           (cl-remove-if-not (lambda (arg) (string-prefix-p "-" arg))
                             transient-params)))
 
+(defun sharper--option-alist-to-string (options)
+  "Converts the OPTIONS as parsed by `sharper--only-options' to a string."
+  ;; Right now the alist intermediate step seems useless. But I think the alist
+  ;; is a good idea in case we ever need to massage the parameters :)
+  (mapconcat (lambda (str-or-pair)
+               (if (consp str-or-pair)
+                   (concat (car str-or-pair) " " (cdr str-or-pair))
+                 str-or-pair))
+             options
+             " "))
+
 ;;------------------dotnet common-------------------------------------------------
+
+(defun sharper--project-dir (&optional path)
+  "Get the project rootfrom optional PATH or `default-directory'."
+  (project-root (project-current nil
+                                 (or path
+                                     default-directory))))
 
 (defun sharper--filename-proj-or-sln-p (filename)
   "Return non-nil if FILENAME is a project or solution."
@@ -167,19 +204,19 @@
   (interactive
    (list (transient-args 'sharper-transient-build)))
   (transient-set)
-  (let ((target (sharper--get-target transient-params))
-        (args (shaper--only-options transient-params)))
-    (message "target %s" target)
-    (message "args %s" (prin1-to-string args))
-    (message "Whole thing%s" (prin1-to-string transient-params))))
-
-(defun dotnet-build ()
-  "Build a .NET project."
-  (interactive)
-  (let* ((target (dotnet--select-project-or-solution))
-         (command (concat "dotnet build " (dotnet--verbosity-param)  " %s")))
-    (let (directory-default (file-name-directory target))
-      (compile (format command target)))))
+  (let* ((target (sharper--get-target transient-params))
+         (options (shaper--only-options transient-params))
+         ;; We want *compilation* to happen at the root directory
+         ;; of the selected project/solution
+         (default-directory (sharper--project-dir target)))
+    (unless target ;; it is possible to build without a target :shrug:
+      (sharper--message "No TARGET provided, will build in default directory."))
+    (let ((command (format-spec sharper--build-template
+                                (format-spec-make ?t (or target "")
+                                                  ?o (sharper--option-alist-to-string options)))))
+      (sharper--log "Compilation command\n" command "\n")
+      (setq sharper--last-build command)
+      (compile command))))
 
 (define-transient-command sharper-transient-build ()
   "dotnet build menu"
