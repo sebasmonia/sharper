@@ -19,7 +19,7 @@
 ;;
 ;; Steps to setup:
 ;;   1. Place sharper.el in your load-path.  Or install from MELPA.
-;;   2. Add a binding to start sharper:
+;;   2. Add a binding to start sharper's transient:
 ;;       (require 'sharper)
 ;;       (global-set-key (kbd "C-c n") 'sharper-main-transient) ;; For "n" for "dot NET"
 ;;
@@ -33,6 +33,7 @@
 
 (require 'transient)
 (require 'cl-lib)
+(require 'cl-extra)
 (require 'project)
 
 (defun sharper--message (text)
@@ -56,9 +57,9 @@
   "dotnet CLI wrapper, using Transient."
   :group 'extensions)
 
-(defcustom sharper-project-or-solution-regex ".*\\.\\(csproj\\|sln\\)$"
+(defcustom sharper-project-or-solution-extensions '("csproj" "sln")
   "Regex to match filenames that are valid as project or solution files."
-  :type 'string)
+  :type 'list)
 
 ;; (defcustom panda-open-status-after-build 'ask
 ;;   "Open the build status for the corresponding branch after requesting a build.
@@ -82,7 +83,7 @@
   "dotnet Menu"
   ["Actions"
    ;; global
-   ("b" "build" dotnet-menu-transient-build)])
+   ("b" "build" sharper-transient-build)])
 
 
 ;; TODO: REMOVE IN FINAL PACKAGE
@@ -92,20 +93,32 @@
 
 ;;------------------dotnet common-------------------------------------------------
 
+(defun sharper--get-target (transient-params)
+  "Extract from TRANSIENT-PARAMS the \"TARGET\" argument."
+  (cl-some
+   (lambda (an-arg) (when (string-prefix-p "<TARGET>=" an-arg)
+                      (replace-regexp-in-string "<TARGET>="
+                                                ""
+                                                an-arg)))
+   transient-params))
+
+;; TODO: Convert them to list of arguments quoted for shell?
+;; (shell-quote-argument)
+(defun shaper--only-options (transient-params)
+  "Extract from TRANSIENT-PARAMS the options (ie, start with -)."
+  (cl-remove-if-not (lambda (arg) (string-prefix-p "-" arg)) transient-params))
+
 (defun sharper--read-solution-or-project ()
+  "Offer completion for project or solution files under the current project's root."
   (interactive)
-  (cl-labels ((read-fn-predicate (filename)
-                                 (string-match-p sharper-project-or-solution-regex
-                                                 filename)))
-    (let ((starting-directory (when (project-current)
-                                  (project-root (project-current)))))
-    (expand-file-name
-     (read-file-name "Select solution or project: "
-                     starting-directory ;; will be `default-directory' if nil
-                     nil
-                     t
-                     nil
-                     #'read-fn-predicate)))))
+  (labels ((proj-sln-p (filename) (member
+                                   (file-name-extension
+                                    filename)
+                                   sharper-project-or-solution-extensions)))
+    (let ((all-files (project-files (project-current t))))
+      (completing-read "Select project or solution: "
+                       all-files
+                       #'proj-sln-p))))
 
 (define-infix-argument sharper--option-target-projsln ()
   :description "<PROJECT>|<SOLUTION>"
@@ -117,29 +130,40 @@
 
 ;;------------------dotnet build--------------------------------------------------
 
-;; dotnet build [<PROJECT>|<SOLUTION>] [-c|--configuration <CONFIGURATION>]
-;;     [-f|--framework <FRAMEWORK>] [--force] [--interactive] [--no-dependencies]
-;;     [--no-incremental] [--no-restore] [--nologo] [-o|--output <OUTPUT_DIRECTORY>]
-;;     [-r|--runtime <RUNTIME_IDENTIFIER>] [-s|--source <SOURCE>]
-;;     [-v|--verbosity <LEVEL>] [--version-suffix <VERSION_SUFFIX>]
-
-(defun sharper--build (&optional args)
+(defun sharper--build (&optional transient-params)
+  "Run \"dotnet build\" using TRANSIENT-PARAMS as arguments & options."
   (interactive
-   (list (transient-args 'sharper-transipent-build)))
+   (list (transient-args 'sharper-transient-build)))
   (transient-set)
-  (message "args %s" args))
+  (let ((target (sharper--get-target transient-params))
+        (args (shaper--only-options transient-params)))
+    (message "target %s" target)
+    (message "args %s" (prin1-to-string args))))
+
+(defun dotnet-build ()
+  "Build a .NET project."
+  (interactive)
+  (let* ((target (dotnet--select-project-or-solution))
+         (command (concat "dotnet build " (dotnet--verbosity-param)  " %s")))
+    (let (directory-default (file-name-directory target))
+      (compile (format command target)))))
 
 (define-transient-command sharper-transient-build ()
   "dotnet build menu"
-  ["Arguments"
+  :value '("--configuration=Debug" "--verbosity=minimal")
+  ["Common Arguments"
    (sharper--option-target-projsln)
-   ("-c" "Configuration" "--configuration=Debug")
+   ("-c" "Configuration" "--configuration=")
+   ("-v" "Verbosity" "--verbosity=")]
+  ["Other Arguments"
    ("-o" "Output" "-output=")
-   ("-r" "Target runtime" "--runtime=")
    ("-ni" "No incremental" "--no-incremental")
-   ("-nd" "No dependencies" "--no-dependencies")]
+   ("-nd" "No dependencies" "--no-dependencies")
+   ("-r" "Target runtime" "--runtime=")
+   ("-s" "NuGet Package source URI" "--source")
+   ("-es" "Version suffix" "--version-suffix=")]
   ["Actions"
-   ("b" "build" sharper-build)
+   ("b" "build" sharper--build)
    ("q" "quit" transient-quit-all)])
 
 (provide 'sharper)
