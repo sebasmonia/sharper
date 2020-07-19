@@ -78,6 +78,7 @@
 ;; %r = RUNTIME SETTINGS (dotnet test only)
 (defvar sharper--build-template "dotnet build %t %o" "Template for \"dotnet build\" invocations.")
 (defvar sharper--test-template "dotnet test %t %o %r" "Template for \"dotnet test\" invocations.")
+(defvar sharper--clean-template "dotnet clean %t %o" "Template for \"dotnet clean\" invocations.")
 
 (defvar sharper--last-build nil "Last command used for a build")
 (defvar sharper--last-test nil "Last command used to run tests")
@@ -91,7 +92,10 @@
    ("b" "repeat last build" sharper--run-last-build)]
   ["Test commands"
    ("T" "test" sharper-transient-test)
-   ("t" "repeat last test run" sharper--run-last-test)])
+   ("t" "repeat last test run" sharper--run-last-test)]
+  ["Misc commands"
+   ("c" "clean" sharper-transient-clean)
+   ("q" "quit" transient-quit-all)])
 
 
 (defun sharper--run-last-build (&optional transient-params)
@@ -324,6 +328,41 @@
    (sharper--option-test-runsettings)]
   ["Actions"
    ("t" "test" sharper--test)
+   ("q" "quit" transient-quit-all)])
+
+;;------------------dotnet clean--------------------------------------------------
+
+(defun sharper--clean (&optional transient-params)
+  "Run \"dotnet clean\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-clean)))
+  (transient-set)
+  (let* ((target (sharper--get-target transient-params))
+         (options (shaper--only-options transient-params))
+         ;; We want *compilation* to happen at the root directory
+         ;; of the selected project/solution
+         (default-directory (sharper--project-dir target)))
+    (unless target ;; it is possible to build without a target :shrug:
+      (sharper--message "No TARGET provided, will run clean in default directory."))
+    (let ((command (format-spec sharper--clean-template
+                                (format-spec-make ?t (or target "")
+                                                  ?o (sharper--option-alist-to-string options)))))
+      (sharper--log "Clean command\n" command "\n")
+      (async-shell-command command "*sharper - clean output*"))))
+
+(define-transient-command sharper-transient-clean ()
+  "dotnet clean menu"
+  :value '("--configuration=Debug" "--verbosity=normal")
+  ["Common Arguments"
+   (sharper--option-target-projsln)
+   ("-c" "Configuration" "--configuration=")
+   ("-v" "Verbosity" "--verbosity=")]
+  ["Other Arguments"
+   ("-w" "Framework" "--framework=")
+   ("-o" "Output" "--output=")
+   ("-r" "Target runtime" "--runtime=")]
+  ["Actions"
+   ("c" "clean" sharper--clean)
    ("q" "quit" transient-quit-all)])
 
 (provide 'sharper)
