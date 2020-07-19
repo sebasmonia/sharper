@@ -75,25 +75,26 @@
 ;; %s = SOLUTION
 ;; %p = PROJECT
 ;; %k = PACKAGE NAME
+;; %r = RUNTIME SETTINGS (dotnet test only)
 (defvar sharper--build-template "dotnet build %t %o" "Template for \"dotnet build\" invocations.")
-;; (defvar panda--projects-cache nil "Caches all the build projects the user has access to, in one go.")
-;; (defvar panda--plans-cache nil "Caches the plans for each build project the user has access to, in one go.")
-;; (defvar panda--branches-cache nil "Caches the branches for each plan, as they are requested.")
-;; (defvar panda--deploys-cache nil "Caches the deployment projects (not build projects) in one single call to /deploy/project/all.")
+(defvar sharper--test-template "dotnet test %t %o %r" "Template for \"dotnet test\" invocations.")
 
 (defvar sharper--last-build nil "Last command used for a build")
+(defvar sharper--last-test nil "Last command used to run tests")
 
 ;;------------------Main transient------------------------------------------------
 
 (define-transient-command sharper-main-transient ()
   "dotnet Menu"
-  ["Actions"
-   ;; global
+  ["Build commands"
    ("B" "build" sharper-transient-build)
-   ("b" "repeat last build" sharper--last-build)])
+   ("b" "repeat last build" sharper--run-last-build)]
+  ["Test commands"
+   ("T" "test" sharper-transient-test)
+   ("t" "repeat last test run" sharper--run-last-test)])
 
 
-(defun sharper--last-build (&optional transient-params)
+(defun sharper--run-last-build (&optional transient-params)
   "Run \"dotnet build\" using TRANSIENT-PARAMS as arguments & options."
   (interactive
    (list (transient-args 'sharper-transient-build)))
@@ -104,6 +105,18 @@
         (compile sharper--last-build))
     (sharper-transient-build)))
 
+(defun sharper--run-last-test (&optional transient-params)
+  "Run \"dotnet test\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-build)))
+  (transient-set)
+  (sharper--log "Test command\n" sharper--last-test "\n")
+  (if sharper--last-test
+      (progn
+        (sharper--log "Test command\n" sharper--last-test "\n")
+        (compile sharper--last-test))
+    (sharper-transient-test)))
+
 ;; TODO: REMOVE IN FINAL PACKAGE
 (define-key hoagie-keymap (kbd "n") 'sharper-main-transient)
 ;; TODO: REMOVE IN FINAL PACKAGE
@@ -113,9 +126,13 @@
 
 (defun sharper--get-target (transient-params)
   "Extract & shell-quote from TRANSIENT-PARAMS the \"TARGET\" argument."
+  (sharper--get-argument "<TARGET>=" transient-params))
+
+(defun sharper--get-argument (marker transient-params)
+  "Extract & shell-quote from TRANSIENT-PARAMS the argument with  MARKER."
   (let ((target (cl-some
-                 (lambda (an-arg) (when (string-prefix-p "<TARGET>=" an-arg)
-                                    (replace-regexp-in-string "<TARGET>="
+                 (lambda (an-arg) (when (string-prefix-p marker an-arg)
+                                    (replace-regexp-in-string marker
                                                               ""
                                                               an-arg)))
                  transient-params)))
@@ -214,9 +231,8 @@
     (let ((command (format-spec sharper--build-template
                                 (format-spec-make ?t (or target "")
                                                   ?o (sharper--option-alist-to-string options)))))
-      (sharper--log "Compilation command\n" command "\n")
       (setq sharper--last-build command)
-      (compile command))))
+      (sharper--run-last-build))))
 
 (define-transient-command sharper-transient-build ()
   "dotnet build menu"
@@ -226,7 +242,8 @@
    ("-c" "Configuration" "--configuration=")
    ("-v" "Verbosity" "--verbosity=")]
   ["Other Arguments"
-   ("-o" "Output" "-output=")
+   ("-w" "Framework" "--framework=")
+   ("-o" "Output" "--output=")
    ("-ni" "No incremental" "--no-incremental")
    ("-nd" "No dependencies" "--no-dependencies")
    ("-r" "Target runtime" "--runtime=")
@@ -234,6 +251,79 @@
    ("-es" "Version suffix" "--version-suffix=")]
   ["Actions"
    ("b" "build" sharper--build)
+   ("q" "quit" transient-quit-all)])
+
+;;------------------dotnet test---------------------------------------------------
+
+(defun sharper--test (&optional transient-params)
+  "Run \"dotnet test\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-test)))
+  (transient-set)
+  (let* ((target (sharper--get-target transient-params))
+         (options (shaper--only-options transient-params))
+         (runtime-settings (sharper--get-argument "<RunSettings>=" transient-params))
+         ;; We want *compilation* to happen at the root directory
+         ;; of the selected project/solution
+         (default-directory (sharper--project-dir target)))
+    (unless target ;; it is possible to test without a target :shrug:
+      (sharper--message "No TARGET provided, will run tests in default directory."))
+    (let ((command (format-spec sharper--test-template
+                                (format-spec-make ?t (or target "")
+                                                  ?o (sharper--option-alist-to-string options)
+                                                  ?r (if runtime-settings
+                                                         (concat "-- " runtime-settings)
+                                                       "")))))
+      (setq sharper--last-test command)
+      (sharper--run-last-test))))
+
+;; dotnet test [<PROJECT> | <SOLUTION> | <DIRECTORY> | <DLL>]
+;;     [-a|--test-adapter-path <PATH_TO_ADAPTER>] [--blame]
+;;     [-c|--configuration <CONFIGURATION>]
+;;     [--collect <DATA_COLLECTOR_FRIENDLY_NAME>]
+;;     [-d|--diag <PATH_TO_DIAGNOSTICS_FILE>] [-f|--framework <FRAMEWORK>]
+;;     [--filter <EXPRESSION>] [--interactive]
+;;     [-l|--logger <LOGGER_URI/FRIENDLY_NAME>] [--no-build]
+;;     [--nologo] [--no-restore] [-o|--output <OUTPUT_DIRECTORY>]
+;;     [-r|--results-directory <PATH>] [--runtime <RUNTIME_IDENTIFIER>]
+;;     [-s|--settings <SETTINGS_FILE>] [-t|--list-tests]
+;;     [-v|--verbosity <LEVEL>] [[--] <RunSettings arguments>]
+
+(define-infix-argument sharper--option-test-runsettings ()
+  :description "<RunSettings>"
+  :class 'transient-option
+  :shortarg "RS"
+  :argument "<RunSettings>="
+  :reader (lambda (_prompt _initial-input _history)
+            (read-string "RunSettings arguments: ")))
+
+(define-transient-command sharper-transient-test ()
+  "dotnet test menu"
+  :value '("--configuration=Debug" "--verbosity=minimal")
+  ["Common Arguments"
+   (sharper--option-target-projsln)
+   ("-c" "Configuration" "--configuration=")
+   ("-v" "Verbosity" "--verbosity=")
+   ("-f" "Filter" "--filter=")
+   ("-l" "Logger" "--logger=")
+   ("-t" "List tests discovered""--list-tests")
+   ("-nb" "No build" "--no-build")]
+  ["Other Arguments"
+   ("-b" "Blame" "--blame")
+   ("-a" "Test adapter path" "--test-adapter-path=")
+   ("-w" "Framework" "--framework=")
+   ("-b" "Blame" "--blame")
+   ("-o" "Output" "--output=")
+   ("-O" "Data collector name" "--collect")
+   ("-d" "Diagnostics file" "--diag=")
+   ("-nr" "No restore" "--no-restore")
+   ("-r" "Target runtime" "--runtime=")
+   ("-R" "Results directory" "--results-directory=")
+   ("-s" "Settings" "--settings=")
+   ("-es" "Version suffix" "--version-suffix=")
+   (sharper--option-test-runsettings)]
+  ["Actions"
+   ("t" "test" sharper--test)
    ("q" "quit" transient-quit-all)])
 
 (provide 'sharper)
