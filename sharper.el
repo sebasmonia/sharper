@@ -79,9 +79,11 @@
 (defvar sharper--build-template "dotnet build %t %o" "Template for \"dotnet build\" invocations.")
 (defvar sharper--test-template "dotnet test %t %o %r" "Template for \"dotnet test\" invocations.")
 (defvar sharper--clean-template "dotnet clean %t %o" "Template for \"dotnet clean\" invocations.")
+(defvar sharper--publish-template "dotnet publish %t %o" "Template for \"dotnet publish\" invocations.")
 
 (defvar sharper--last-build nil "Last command used for a build")
 (defvar sharper--last-test nil "Last command used to run tests")
+(defvar sharper--last-publish nil "Last command used to run a publish")
 
 ;;------------------Main transient------------------------------------------------
 
@@ -93,13 +95,17 @@
   ["Test commands"
    ("T" "test" sharper-transient-test)
    ("t" "repeat last test run" sharper--run-last-test)]
+  ["Publish commands"
+   ("P" "publish" sharper-transient-publish)
+   ("p" "repeat last publish" sharper--run-last-publish)]
   ["Misc commands"
    ("c" "clean" sharper-transient-clean)
+   ("d" "docs (via browse-url calls)" sharper-transient-clean)
    ("q" "quit" transient-quit-all)])
 
 
 (defun sharper--run-last-build (&optional transient-params)
-  "Run \"dotnet build\" using TRANSIENT-PARAMS as arguments & options."
+  "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-build'."
   (interactive
    (list (transient-args 'sharper-transient-build)))
   (transient-set)
@@ -110,9 +116,9 @@
     (sharper-transient-build)))
 
 (defun sharper--run-last-test (&optional transient-params)
-  "Run \"dotnet test\" using TRANSIENT-PARAMS as arguments & options."
+  "Run \"dotnet test\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-test'."
   (interactive
-   (list (transient-args 'sharper-transient-build)))
+   (list (transient-args 'sharper-transient-test)))
   (transient-set)
   (sharper--log "Test command\n" sharper--last-test "\n")
   (if sharper--last-test
@@ -120,6 +126,17 @@
         (sharper--log "Test command\n" sharper--last-test "\n")
         (compile sharper--last-test))
     (sharper-transient-test)))
+
+(defun sharper--run-last-publish (&optional transient-params)
+  "Run \"dotnet publish\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-publish'."
+  (interactive
+   (list (transient-args 'sharper-transient-publish)))
+  (transient-set)
+  (if sharper--last-publish
+      (progn
+        (sharper--log "Publish command\n" sharper--last-publish "\n")
+        (async-shell-command sharper--last-publish))
+    (sharper-transient-publish)))
 
 ;; TODO: REMOVE IN FINAL PACKAGE
 (define-key hoagie-keymap (kbd "n") 'sharper-main-transient)
@@ -281,18 +298,6 @@
       (setq sharper--last-test command)
       (sharper--run-last-test))))
 
-;; dotnet test [<PROJECT> | <SOLUTION> | <DIRECTORY> | <DLL>]
-;;     [-a|--test-adapter-path <PATH_TO_ADAPTER>] [--blame]
-;;     [-c|--configuration <CONFIGURATION>]
-;;     [--collect <DATA_COLLECTOR_FRIENDLY_NAME>]
-;;     [-d|--diag <PATH_TO_DIAGNOSTICS_FILE>] [-f|--framework <FRAMEWORK>]
-;;     [--filter <EXPRESSION>] [--interactive]
-;;     [-l|--logger <LOGGER_URI/FRIENDLY_NAME>] [--no-build]
-;;     [--nologo] [--no-restore] [-o|--output <OUTPUT_DIRECTORY>]
-;;     [-r|--results-directory <PATH>] [--runtime <RUNTIME_IDENTIFIER>]
-;;     [-s|--settings <SETTINGS_FILE>] [-t|--list-tests]
-;;     [-v|--verbosity <LEVEL>] [[--] <RunSettings arguments>]
-
 (define-infix-argument sharper--option-test-runsettings ()
   :description "<RunSettings>"
   :class 'transient-option
@@ -339,7 +344,7 @@
   (transient-set)
   (let* ((target (sharper--get-target transient-params))
          (options (shaper--only-options transient-params))
-         ;; We want *compilation* to happen at the root directory
+         ;; We want async-shell-command to happen at the root directory
          ;; of the selected project/solution
          (default-directory (sharper--project-dir target)))
     (unless target ;; it is possible to build without a target :shrug:
@@ -363,6 +368,52 @@
    ("-r" "Target runtime" "--runtime=")]
   ["Actions"
    ("c" "clean" sharper--clean)
+   ("q" "quit" transient-quit-all)])
+
+
+;;------------------dotnet publish------------------------------------------------
+
+(defun sharper--publish (&optional transient-params)
+  "Run \"dotnet publish\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-publish)))
+  (transient-set)
+  (let* ((target (sharper--get-target transient-params))
+         (options (shaper--only-options transient-params))
+         ;; We want async-shell-command to happen at the root directory
+         ;; of the selected project/solution
+         (default-directory (sharper--project-dir target)))
+    (unless target ;; it is possible to test without a target :shrug:
+      (sharper--message "No TARGET provided, will run tests in default directory."))
+    (let ((command (format-spec sharper--publish-template
+                                (format-spec-make ?t (or target "")
+                                                  ?o (sharper--option-alist-to-string options)))))
+      (setq sharper--last-publish command)
+      (sharper--run-last-publish))))
+
+(define-transient-command sharper-transient-publish ()
+  "dotnet publish menu"
+  :value '("--configuration=Debug" "--verbosity=minimal")
+  ["Common Arguments"
+   (sharper--option-target-projsln)
+   ("-c" "Configuration" "--configuration=")
+   ("-v" "Verbosity" "--verbosity=")]
+  ["Other Arguments"
+   ("-f" "Force" "--force")
+   ("-w" "Framework" "--framework=")
+   ("-r" "Target runtime" "--runtime=")
+   ("-o" "Output" "--output=")
+   ;; There are somewhat odd rules governing these two
+   ;; easier to include both self contained flags and
+   ;; have users make sense of them
+   ("-sf" "Self contained" "--self-contained")
+   ("-ns" "No self contained" "--no-self-contained")
+   ("-nb" "No build" "--no-build")
+   ("-nd" "No dependencies" "--no-dependencies")
+   ("-nr" "No restore" "--no-restore")
+   ("-es" "Version suffix" "--version-suffix=")]
+  ["Actions"
+   ("p" "publish" sharper--publish)
    ("q" "quit" transient-quit-all)])
 
 (provide 'sharper)
