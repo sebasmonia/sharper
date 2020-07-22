@@ -17,7 +17,7 @@ This is a [Transient-based](https://github.com/magit/transient) menu for the [do
 
 Place `shaper.el` in your load-path, and `(require shaper)`. Or, preferred, install from MELPA. _NOTE: the package is not in MELPA yet, it is in ALPHA state :)_
 
-Then bind `shaper-main-transient` to a binding of your preference:
+Then bind `shaper-main-transient` to a key of your preference:
 
 ```elisp
 (global-set-key (kbd "C-c n") 'sharper-main-transient) ;; For "n" for "dot NET"
