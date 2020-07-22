@@ -180,7 +180,8 @@
       (insert "\nInstalled SDKs:\n"
               dotnet-sdks)
       (insert "\nInstalled runtimes:\n"
-              dotnet-runtimes))
+              dotnet-runtimes)
+      (goto-char (point-min)))
     (pop-to-buffer buf)))
 
 ;;------------------Argument parsing----------------------------------------------
