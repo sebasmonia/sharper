@@ -181,11 +181,6 @@
               dotnet-runtimes))
     (pop-to-buffer buf)))
 
-;; TODO: REMOVE IN FINAL PACKAGE
-(define-key hoagie-keymap (kbd "n") 'sharper-main-transient)
-;; TODO: REMOVE IN FINAL PACKAGE
-
-
 ;;------------------Argument parsing----------------------------------------------
 
 (defun sharper--get-target (transient-params)
