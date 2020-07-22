@@ -164,7 +164,9 @@
    (list (transient-args 'sharper-main-transient)))
   (transient-set)
   (message "Compiling \"dotnet\" information...")
-  (let ((dotnet-path (shell-command-to-string "which dotnet"))
+  (let ((dotnet-path (shell-command-to-string (if (string= system-type "windows-nt")
+                                                  "where dotnet"
+                                                "which dotnet")))
         (dotnet-version (shell-command-to-string "dotnet --version"))
         (dotnet-sdks (shell-command-to-string "dotnet --list-sdks"))
         (dotnet-runtimes (shell-command-to-string "dotnet --list-runtimes"))
