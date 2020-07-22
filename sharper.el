@@ -105,7 +105,7 @@
    ("n" "rebuild last package" sharper--run-last-pack)]
   ["Misc commands"
    ("c" "clean" sharper-transient-clean)
-   ("d" "docs (via browse-url calls)" sharper-transient-clean)
+   ("v" "version info (SDK & runtimes)" sharper--version-info)
    ("q" "quit" transient-quit-all)])
 
 ;; TODO: commands I haven't used and could (should?) be implemented:
@@ -156,6 +156,30 @@
         (sharper--log "Pack command\n" sharper--last-pack "\n")
         (compile sharper--last-pack))
     (sharper-transient-pack)))
+
+
+(defun sharper--version-info (&optional transient-params)
+  "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-pack'."
+  (interactive
+   (list (transient-args 'sharper-main-transient)))
+  (transient-set)
+  (message "Compiling \"dotnet\" information...")
+  (let ((dotnet-path (shell-command-to-string "which dotnet"))
+        (dotnet-version (shell-command-to-string "dotnet --version"))
+        (dotnet-sdks (shell-command-to-string "dotnet --list-sdks"))
+        (dotnet-runtimes (shell-command-to-string "dotnet --list-runtimes"))
+        (buf (get-buffer-create "*dotnet info*")))
+    (with-current-buffer buf
+      (erase-buffer)
+      (insert "dotnet path: "
+              dotnet-path)
+      (insert "dotnet version: "
+              dotnet-version)
+      (insert "\nInstalled SDKs:\n"
+              dotnet-sdks)
+      (insert "\nInstalled runtimes:\n"
+              dotnet-runtimes))
+    (pop-to-buffer buf)))
 
 ;; TODO: REMOVE IN FINAL PACKAGE
 (define-key hoagie-keymap (kbd "n") 'sharper-main-transient)
