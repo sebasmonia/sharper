@@ -76,33 +76,41 @@
 ;; %p = PROJECT
 ;; %k = PACKAGE NAME
 ;; %r = RUNTIME SETTINGS (dotnet test only)
-(defvar sharper--build-template "dotnet build %t %o" "Template for \"dotnet build\" invocations.")
+(defvar sharper--build-template "dotnet build %t %o %p" "Template for \"dotnet build\" invocations.")
 (defvar sharper--test-template "dotnet test %t %o %r" "Template for \"dotnet test\" invocations.")
 (defvar sharper--clean-template "dotnet clean %t %o" "Template for \"dotnet clean\" invocations.")
 (defvar sharper--publish-template "dotnet publish %t %o" "Template for \"dotnet publish\" invocations.")
+(defvar sharper--pack-template "dotnet pack %t %o %p" "Template for \"dotnet pack\" invocations.")
 
 (defvar sharper--last-build nil "Last command used for a build")
 (defvar sharper--last-test nil "Last command used to run tests")
 (defvar sharper--last-publish nil "Last command used to run a publish")
+(defvar sharper--last-pack nil "Last command used to create a NuGet package")
 
 ;;------------------Main transient------------------------------------------------
 
 (define-transient-command sharper-main-transient ()
   "dotnet Menu"
-  ["Build commands"
-   ("B" "build" sharper-transient-build)
+  ["Build"
+   ("B" "new build" sharper-transient-build)
    ("b" "repeat last build" sharper--run-last-build)]
-  ["Test commands"
-   ("T" "test" sharper-transient-test)
+  ["Run test"
+   ("T" "new test run" sharper-transient-test)
    ("t" "repeat last test run" sharper--run-last-test)]
-  ["Publish commands"
-   ("P" "publish" sharper-transient-publish)
+  ["Publish app"
+   ("P" "new publish" sharper-transient-publish)
    ("p" "repeat last publish" sharper--run-last-publish)]
+  ["Pack to .nupkg file"
+   ("N" "new package" sharper-transient-pack)
+   ("n" "rebuild last package" sharper--run-last-pack)]
   ["Misc commands"
    ("c" "clean" sharper-transient-clean)
    ("d" "docs (via browse-url calls)" sharper-transient-clean)
    ("q" "quit" transient-quit-all)])
 
+;; TODO: commands I haven't used and could (should?) be implemented:
+;; dotnet store
+;;
 
 (defun sharper--run-last-build (&optional transient-params)
   "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-build'."
@@ -138,6 +146,17 @@
         (async-shell-command sharper--last-publish))
     (sharper-transient-publish)))
 
+(defun sharper--run-last-pack (&optional transient-params)
+  "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-pack'."
+  (interactive
+   (list (transient-args 'sharper-transient-pack)))
+  (transient-set)
+  (if sharper--last-pack
+      (progn
+        (sharper--log "Pack command\n" sharper--last-pack "\n")
+        (compile sharper--last-pack))
+    (sharper-transient-pack)))
+
 ;; TODO: REMOVE IN FINAL PACKAGE
 (define-key hoagie-keymap (kbd "n") 'sharper-main-transient)
 ;; TODO: REMOVE IN FINAL PACKAGE
@@ -148,6 +167,10 @@
 (defun sharper--get-target (transient-params)
   "Extract & shell-quote from TRANSIENT-PARAMS the \"TARGET\" argument."
   (sharper--get-argument "<TARGET>=" transient-params))
+
+(defun sharper--get-msbuild-props (transient-params)
+  "Extract & shell-quote from TRANSIENT-PARAMS the \"MSBuildProperties\" properties."
+  (sharper--get-argument "<MSBuildProperties>=" transient-params))
 
 (defun sharper--get-argument (marker transient-params)
   "Extract & shell-quote from TRANSIENT-PARAMS the argument with  MARKER."
@@ -227,6 +250,18 @@
                      all-files
                      #'sharper--filename-proj-or-sln-p)))
 
+;; TODO: it would be really nice if this validated the format
+(defun sharper--read-msbuild-properties ()
+  "Read name-value pairs of MSBuild property strings."
+  (let ((user-input (read-string
+                     "Enter the MSBuild properties in the format p1=v1 p2=v2...pN=vN: ")))
+    (mapconcat
+     (lambda (pair)
+       (concat "-p:" pair)
+       )
+     (split-string user-input)
+     " ")))
+
 (define-infix-argument sharper--option-target-projsln ()
   :description "<PROJECT>|<SOLUTION>"
   :class 'transient-option
@@ -234,6 +269,14 @@
   :argument "<TARGET>="
   :reader (lambda (_prompt _initial-input _history)
             (sharper--read-solution-or-project)))
+
+(define-infix-argument sharper--option-msbuild-params ()
+  :description "<MSBuildProperties>"
+  :class 'transient-option
+  :shortarg "-p"
+  :argument "<MSBuildProperties>="
+  :reader (lambda (_prompt _initial-input _history)
+            (sharper--read-msbuild-properties)))
 
 ;;------------------dotnet build--------------------------------------------------
 
@@ -244,6 +287,7 @@
   (transient-set)
   (let* ((target (sharper--get-target transient-params))
          (options (shaper--only-options transient-params))
+         (msbuild-props (sharper--get-argument "<MSBuildProperties>=" transient-params))
          ;; We want *compilation* to happen at the root directory
          ;; of the selected project/solution
          (default-directory (sharper--project-dir target)))
@@ -251,7 +295,8 @@
       (sharper--message "No TARGET provided, will build in default directory."))
     (let ((command (format-spec sharper--build-template
                                 (format-spec-make ?t (or target "")
-                                                  ?o (sharper--option-alist-to-string options)))))
+                                                  ?o (sharper--option-alist-to-string options)
+                                                  ?p (or msbuild-props "")))))
       (setq sharper--last-build command)
       (sharper--run-last-build))))
 
@@ -268,6 +313,7 @@
    ("-ni" "No incremental" "--no-incremental")
    ("-nd" "No dependencies" "--no-dependencies")
    ("-r" "Target runtime" "--runtime=")
+   (sharper--option-msbuild-params)
    ("-s" "NuGet Package source URI" "--source")
    ("-es" "Version suffix" "--version-suffix=")]
   ["Actions"
@@ -415,6 +461,53 @@
   ["Actions"
    ("p" "publish" sharper--publish)
    ("q" "quit" transient-quit-all)])
+
+;;------------------dotnet pack---------------------------------------------------
+
+(defun sharper--pack (&optional transient-params)
+  "Run \"dotnet pack\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-pack)))
+  (transient-set)
+  (let* ((target (sharper--get-target transient-params))
+         (options (shaper--only-options transient-params))
+         (msbuild-props (sharper--get-argument "<MSBuildProperties>=" transient-params))
+         ;; We want *compilation* to happen at the root directory
+         ;; of the selected project/solution
+         (default-directory (sharper--project-dir target)))
+    (unless target ;; it is possible to build without a target :shrug:
+      (sharper--message "No TARGET provided, will pack in default directory."))
+    (let ((command (format-spec sharper--pack-template
+                                (format-spec-make ?t (or target "")
+                                                  ?o (sharper--option-alist-to-string options)
+                                                  ?p (or msbuild-props "")))))
+      (setq sharper--last-pack command)
+      (sharper--run-last-pack))))
+
+(define-transient-command sharper-transient-pack ()
+  "dotnet build menu"
+  :value '("--configuration=Debug" "--verbosity=minimal")
+  ["Common Arguments"
+   (sharper--option-target-projsln)
+   ("-c" "Configuration" "--configuration=")
+   ("-v" "Verbosity" "--verbosity=")]
+  ["Other Arguments"
+   ("-f" "Force" "--force")
+   ("-w" "Framework" "--framework=")
+   ("-r" "Target runtime" "--runtime=")
+   ("-o" "Output" "--output=")
+   (sharper--option-msbuild-params)
+   ("-is" "Include source" "--include-source")
+   ("-iy" "Include symbols" "--include-symbols")
+   ("-nb" "No build" "--no-build")
+   ("-nd" "No dependencies" "--no-dependencies")
+   ("-nr" "No restore" "--no-restore")
+   ("-s" "Serviceable" "--serviceable")
+   ("-es" "Version suffix" "--version-suffix=")]
+  ["Actions"
+   ("p" "pack" sharper--pack)
+   ("q" "quit" transient-quit-all)])
+
 
 (provide 'sharper)
 ;;; sharper.el ends here
