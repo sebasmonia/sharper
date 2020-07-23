@@ -213,31 +213,26 @@
 ;;------------------Argument parsing----------------------------------------------
 
 (defun sharper--get-target (transient-params)
-  "Extract & shell-quote from TRANSIENT-PARAMS the \"TARGET\" argument."
+  "Extract from TRANSIENT-PARAMS the \"TARGET\" argument."
   (sharper--get-argument "<TARGET>=" transient-params))
 
-(defun sharper--get-msbuild-props (transient-params)
-  "Extract & shell-quote from TRANSIENT-PARAMS the \"MSBuildProperties\" properties."
-  (sharper--get-argument "<MSBuildProperties>=" transient-params))
-
 (defun sharper--get-argument (marker transient-params)
-  "Extract & shell-quote from TRANSIENT-PARAMS the argument with  MARKER."
-  (let ((target (cl-some
-                 (lambda (an-arg) (when (string-prefix-p marker an-arg)
-                                    (replace-regexp-in-string marker
-                                                              ""
-                                                              an-arg)))
-                 transient-params)))
-    (if target
-        (shell-quote-argument target)
-      target)))
+  "Extract from TRANSIENT-PARAMS the argument with  MARKER."
+  (cl-some
+   (lambda (an-arg) (when (string-prefix-p marker an-arg)
+                      (replace-regexp-in-string marker
+                                                ""
+                                                an-arg)))
+   transient-params))
 
 (defun shaper--option-split-quote (an-option)
   (let* ((equal-char-index (string-match "=" an-option))
          (name (substring an-option 0 equal-char-index)))
     (if equal-char-index
-        (cons name (shell-quote-argument
-                    (substring an-option (+ 1 equal-char-index))))
+        (cons name
+              ;; quoting of the value for the parameter happens
+              ;; later in sharper--option-alist-to-string
+              (substring an-option (+ 1 equal-char-index)))
       name)))
 
 (defun shaper--only-options (transient-params)
@@ -252,21 +247,22 @@
   ;; is a good idea in case we ever need to massage the parameters :)
   (mapconcat (lambda (str-or-pair)
                (if (consp str-or-pair)
-                   (concat (car str-or-pair) " " (cdr str-or-pair))
+                   (concat (car str-or-pair) " " (shell-quote-argument (cdr str-or-pair)))
                  str-or-pair))
              options
              " "))
+
+(defun sharper--shell-quote-or-empty (param)
+  "If PARAM nil or empty string, return empty string, else shell-quote PARAM."
+  (if (or (string-empty-p param)
+          (not param))
+      ""
+    (shell-quote-argument param)))
 
 ;;------------------dotnet common-------------------------------------------------
 
 (defun sharper--project-root (&optional path)
   "Get the project root from optional PATH or `default-directory'."
-  ;; TODO: maybe don't quote path when pulling the arg?
-  ;; It works on Linux, breaks on Windows...
-  ;; ALso "shell unquote" doesn't seem to be an possibility
-  (when (and (string= system-type "windows-nt")
-             path)
-    (setq path (substring path 1 -1)))
   (project-root (project-current nil
                                  (or path
                                      default-directory))))
@@ -355,7 +351,9 @@ is because of quoted path issues on Windows."
   "Call `async-shell-command' to run COMMAND using a buffer BUFFER-NAME."
   (let ((le-buffer (generate-new-buffer (generate-new-buffer-name
                                          buffer-name))))
+    (pop-to-buffer le-buffer)
     (async-shell-command command le-buffer le-buffer)))
+
 
 ;;------------------dotnet build--------------------------------------------------
 
@@ -373,9 +371,9 @@ is because of quoted path issues on Windows."
     (unless target ;; it is possible to build without a target :shrug:
       (sharper--message "No TARGET provided, will build in default directory."))
     (let ((command (format-spec sharper--build-template
-                                (format-spec-make ?t (or target "")
+                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
                                                   ?o (sharper--option-alist-to-string options)
-                                                  ?m (or msbuild-props "")))))
+                                                  ?m (sharper--shell-quote-or-empty  msbuild-props)))))
       (setq sharper--last-build (cons directory command))
       (sharper--run-last-build))))
 
@@ -415,7 +413,7 @@ is because of quoted path issues on Windows."
     (unless target ;; it is possible to test without a target :shrug:
       (sharper--message "No TARGET provided, will run tests in default directory."))
     (let ((command (format-spec sharper--test-template
-                                (format-spec-make ?t (or target "")
+                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
                                                   ?o (sharper--option-alist-to-string options)
                                                   ?a (if run-settings
                                                          (concat "-- " runtime-settings)
@@ -475,7 +473,7 @@ is because of quoted path issues on Windows."
     (unless target ;; it is possible to build without a target :shrug:
       (sharper--message "No TARGET provided, will run clean in default directory."))
     (let ((command (format-spec sharper--clean-template
-                                (format-spec-make ?t (or target "")
+                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
                                                   ?o (sharper--option-alist-to-string options)))))
       (sharper--log "Clean command\n" command "\n")
       (sharper--run-async-shell command "*dotnet clean*"))))
@@ -511,7 +509,7 @@ is because of quoted path issues on Windows."
     (unless target ;; it is possible to test without a target :shrug:
       (sharper--message "No TARGET provided, will run tests in default directory."))
     (let ((command (format-spec sharper--publish-template
-                                (format-spec-make ?t (or target "")
+                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
                                                   ?o (sharper--option-alist-to-string options)))))
       (setq sharper--last-publish (cons directory command))
       (sharper--run-last-publish))))
@@ -557,9 +555,9 @@ is because of quoted path issues on Windows."
     (unless target ;; it is possible to build without a target :shrug:
       (sharper--message "No TARGET provided, will pack in default directory."))
     (let ((command (format-spec sharper--pack-template
-                                (format-spec-make ?t (or target "")
+                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
                                                   ?o (sharper--option-alist-to-string options)
-                                                  ?m (or msbuild-props "")))))
+                                                  ?m (sharper--shell-quote-or-empty msbuild-props)))))
       (setq sharper--last-pack (cons directory command))
       (sharper--run-last-pack))))
 
@@ -603,7 +601,7 @@ is because of quoted path issues on Windows."
     (unless target ;; it is possible to run without a target :shrug:
       (sharper--message "No TARGET provided, will run in default directory."))
     (let ((command (format-spec sharper--run-template
-                                (format-spec-make ?t (or target "")
+                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
                                                   ?o (sharper--option-alist-to-string options)
                                                   ?a (if app-args
                                                          (concat "-- " app-args)
@@ -618,12 +616,6 @@ is because of quoted path issues on Windows."
   :argument "<ApplicationArguments>="
   :reader (lambda (_prompt _initial-input _history)
             (read-string "Application arguments: ")))
-
-;; dotnet run [-c|--configuration <CONFIGURATION>] [-f|--framework <FRAMEWORK>]
-;;     [--force] [--interactive] [--launch-profile <NAME>] [--no-build]
-;;     [--no-dependencies] [--no-launch-profile] [--no-restore]
-;;     [-p|--project <PATH>] [-r|--runtime <RUNTIME_IDENTIFIER>]
-;;     [-v|--verbosity <LEVEL>] [[--] [application arguments]]
 
 (define-transient-command sharper-transient-run ()
   "dotnet run menu"
