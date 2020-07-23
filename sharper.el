@@ -1,10 +1,10 @@
-;;; sharper.el --- dotnet CLI wrapper, using Transient.  -*- lexical-binding: t; -*-
+;;; sharper.el --- A dotnet CLI wrapper, using Transient  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2020 Sebastian Monia
 ;;
 ;; Author: Sebastian Monia <smonia@outlook.com>
 ;; URL: https://github.com/sebasmonia/sharper
-;; Package-Requires: ((emacs "25") (transient "20200601"))
+;; Package-Requires: ((emacs "25.1") (transient "20200601"))
 ;; Version: 1.0
 ;; Keywords: maint tool
 
@@ -42,7 +42,7 @@
   (sharper--log "Package message:\n" text "\n"))
 
 (defun sharper--log-command (title command)
-  "Predefined format to log commands"
+  "Log a COMMAND, using TITLE as header, using the predefined format."
   (sharper--log "[command]" title "\n" command "\n"))
 
 (defun sharper--log (&rest to-log)
@@ -91,16 +91,16 @@
 
 ;; NOTE: if I start needing more than just default-dir + command I might as well create
 ;; a struct that has directory, command, prop1, prop2 etc.
-(defvar sharper--last-build nil "A cons cell (directory . last command used for a build)")
-(defvar sharper--last-test nil "A cons cell (directory . last command used to run tests)")
-(defvar sharper--last-publish nil "A cons cell (directory . last command used to run a publish)")
-(defvar sharper--last-pack nil "A cons cell (directory . last command used to create a NuGet package)")
-(defvar sharper--last-run nil "A cons cell (directory . last command used for \"dotnet run\")")
+(defvar sharper--last-build nil "A cons cell (directory . last command used for a build).")
+(defvar sharper--last-test nil "A cons cell (directory . last command used to run tests).")
+(defvar sharper--last-publish nil "A cons cell (directory . last command used to run a publish).")
+(defvar sharper--last-pack nil "A cons cell (directory . last command used to create a NuGet package).")
+(defvar sharper--last-run nil "A cons cell (directory . last command used for \"dotnet run\").")
 
 
 (defvar-local sharper--solution-path nil "Used in `sharper--solution-management-mode' to store the current solution.")
 
-(defvar-local sharper--project-path nil "Used in `sharper--project-references-mode' to store the current project.")
+(defvar-local sharper--project-path nil "Used in `sharper--project-references-mode' and `sharper--project-packages-mode' to store the current project.")
 
 
 ;;------------------Main transient------------------------------------------------
@@ -239,7 +239,8 @@
                                                 an-arg)))
    transient-params))
 
-(defun shaper--option-split-quote (an-option)
+(defun sharper--option-split-quote (an-option)
+  "Split AN-OPTION and shell quote its value, or return it as-if if it is a string."
   (let* ((equal-char-index (string-match "=" an-option))
          (name (substring an-option 0 equal-char-index)))
     (if equal-char-index
@@ -249,14 +250,14 @@
               (substring an-option (+ 1 equal-char-index)))
       name)))
 
-(defun shaper--only-options (transient-params)
+(defun sharper--only-options (transient-params)
   "Extract from TRANSIENT-PARAMS the options (ie, start with -)."
-  (mapcar #'shaper--option-split-quote
+  (mapcar #'sharper--option-split-quote
           (cl-remove-if-not (lambda (arg) (string-prefix-p "-" arg))
                             transient-params)))
 
 (defun sharper--option-alist-to-string (options)
-  "Converts the OPTIONS as parsed by `sharper--only-options' to a string."
+  "Convert the OPTIONS as parsed by `sharper--only-options' to a string."
   ;; Right now the alist intermediate step seems useless. But I think the alist
   ;; is a good idea in case we ever need to massage the parameters :)
   (mapconcat (lambda (str-or-pair)
@@ -326,8 +327,7 @@
                      "Enter the MSBuild properties in the format p1=v1 p2=v2...pN=vN: ")))
     (mapconcat
      (lambda (pair)
-       (concat "-p:" pair)
-       )
+       (concat "-p:" pair))
      (split-string user-input)
      " ")))
 
@@ -369,7 +369,7 @@
    (list (transient-args 'sharper-transient-build)))
   (transient-set)
   (let* ((target (sharper--get-target transient-params))
-         (options (shaper--only-options transient-params))
+         (options (sharper--only-options transient-params))
          (msbuild-props (sharper--get-argument "<MSBuildProperties>=" transient-params))
          ;; We want *compilation* to happen at the root directory
          ;; of the selected project/solution
@@ -411,7 +411,7 @@
    (list (transient-args 'sharper-transient-test)))
   (transient-set)
   (let* ((target (sharper--get-target transient-params))
-         (options (shaper--only-options transient-params))
+         (options (sharper--only-options transient-params))
          (run-settings (sharper--get-argument "<RunSettings>=" transient-params))
          ;; We want *compilation* to happen at the root directory
          ;; of the selected project/solution
@@ -472,7 +472,7 @@
    (list (transient-args 'sharper-transient-clean)))
   (transient-set)
   (let* ((target (sharper--get-target transient-params))
-         (options (shaper--only-options transient-params))
+         (options (sharper--only-options transient-params))
          ;; We want async-shell-command to happen at the root directory
          ;; of the selected project/solution
          (default-directory (sharper--project-root target)))
@@ -508,7 +508,7 @@
    (list (transient-args 'sharper-transient-publish)))
   (transient-set)
   (let* ((target (sharper--get-target transient-params))
-         (options (shaper--only-options transient-params))
+         (options (sharper--only-options transient-params))
          ;; We want async-shell-command to happen at the root directory
          ;; of the selected project/solution
          (directory (sharper--project-root target)))
@@ -553,7 +553,7 @@
    (list (transient-args 'sharper-transient-pack)))
   (transient-set)
   (let* ((target (sharper--get-target transient-params))
-         (options (shaper--only-options transient-params))
+         (options (sharper--only-options transient-params))
          (msbuild-props (sharper--get-argument "<MSBuildProperties>=" transient-params))
          ;; We want *compilation* to happen at the root directory
          ;; of the selected project/solution
@@ -599,7 +599,7 @@
    (list (transient-args 'sharper-transient-run)))
   (transient-set)
   (let* ((target (sharper--get-target transient-params))
-         (options (shaper--only-options transient-params))
+         (options (sharper--only-options transient-params))
          (app-args (sharper--get-argument "<ApplicationArguments>=" transient-params))
          ;; For run we want this to execute in the same directory
          ;; that the project is, where the .settings file is
@@ -648,6 +648,7 @@
 ;;------------------dotnet solution management------------------------------------
 
 (defun sharper--format-solution-projects (path)
+  "Get and format the projects for the solution in PATH for `sharper--solution-management-mode'."
   (cl-labels ((convert-to-entry (project)
                                 (list project (vector project))))
     (let ((dotnet-sln-output (shell-command-to-string
@@ -658,6 +659,7 @@
               (nthcdr 2 (split-string dotnet-sln-output "\n" t))))))
 
 (defun sharper--manage-solution ()
+  "Prompt for a solution and start `sharper--solution-management-mode' for it."
   (interactive)
   (let* ((solution-full-path (sharper--read-solution))
          (solution-filename (file-name-nondirectory solution-full-path))
@@ -689,11 +691,13 @@
 (define-key sharper--solution-management-mode-map (kbd "a") 'sharper-transient-solution)
 
 (defun sharper--solution-management-refresh ()
+  "Update the tablist view in `sharper--solution-management-mode'."
   (setq tabulated-list-entries
         (sharper--format-solution-projects sharper--solution-path))
   (tabulated-list-print))
 
 (defun sharper--solution-management-add ()
+  "Add a project to the current solution."
   (interactive)
   (let ((default-directory (file-name-directory sharper--solution-path))
         (command (concat "dotnet sln "
@@ -705,6 +709,7 @@
     (sharper--solution-management-refresh)))
 
 (defun sharper--solution-management-remove ()
+  "Remove the project under point from the solution."
   (interactive)
   (let ((default-directory (file-name-directory sharper--solution-path))
         (command (concat "dotnet sln "
@@ -716,6 +721,7 @@
     (sharper--solution-management-refresh)))
 
 (defun sharper--solution-management-open-proj-ref ()
+  "Open `sharper--project-references-mode' for the project under point."
   (interactive)
   ;; SOOOO...in Windows sln-directory has / separators
   ;; and project-relative-path has \\ separators, but _somehow_
@@ -728,6 +734,7 @@
 ;;------------------dotnet project references-------------------------------------
 
 (defun sharper--manage-project-references (project-full-path)
+  "Prompt for PROJECT-FULL-PATH if not provided,  and start `sharper--project-references-mode' for it."
   (interactive
    (list (sharper--read--project)))
   (let* ((project-filename (file-name-nondirectory project-full-path))
@@ -743,6 +750,7 @@
                                 ". Press \"a\" to see available actions." )))))
 
 (defun sharper--format-project-references (path)
+   "Get and format the project reference for the proejct in PATH for `sharper--project-references-mode'."
   (cl-labels ((convert-to-entry (reference)
                                 (list reference (vector reference))))
     (let ((dotnet-list-output (shell-command-to-string
@@ -768,11 +776,13 @@
 (define-key sharper--project-references-mode-map (kbd "a") 'sharper-transient-project-references)
 
 (defun sharper--project-references-refresh ()
+  "Update the tablist view in `sharper--project-references-mode'."
   (setq tabulated-list-entries
         (sharper--format-project-references sharper--project-path))
   (tabulated-list-print))
 
 (defun sharper--project-reference-add ()
+  "Add a project reference to the current project."
   (interactive)
   (let ((default-directory (file-name-directory sharper--project-path))
         (command (concat "dotnet add "
@@ -784,6 +794,7 @@
     (sharper--project-references-refresh)))
 
 (defun sharper--project-reference-remove ()
+  "Remove the project under point from the current project's references."
   (interactive)
   (let ((default-directory (file-name-directory sharper--project-path))
         (command (concat "dotnet remove "
@@ -793,6 +804,8 @@
     (sharper--log-command "Remove project reference" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--project-references-refresh)))
+
+;;------------------dotnet project packages---------------------------------------
 
 (provide 'sharper)
 ;;; sharper.el ends here
