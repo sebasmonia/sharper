@@ -39,7 +39,11 @@
 (defun sharper--message (text)
   "Show a TEXT as a message and log it, if 'panda-less-messages' log only."
   (message "Sharper: %s" text)
-  (sharper--log "Package message:" text "\n"))
+  (sharper--log "Package message:\n" text "\n"))
+
+(defun sharper--log-command (title command)
+  "Predefined format to log commands"
+  (sharper--log "[command]" title "\n" command "\n"))
 
 (defun sharper--log (&rest to-log)
   "Append TO-LOG to the log buffer.  Intended for internal use only."
@@ -136,7 +140,7 @@
   (if sharper--last-build
       (let ((default-directory (car sharper--last-build))
             (command (cdr sharper--last-build)))
-        (sharper--log "Compilation command\n" command "\n")
+        (sharper--log-command "Build" command)
         (compile command))
     (sharper-transient-build)))
 
@@ -149,7 +153,7 @@
   (if sharper--last-test
       (let ((default-directory (car sharper--last-test))
             (command (cdr sharper--last-test)))
-        (sharper--log "Test command\n" command "\n")
+        (sharper--log-command "Test" command)
         (compile command))
     (sharper-transient-test)))
 
@@ -161,7 +165,7 @@
   (if sharper--last-publish
       (let ((default-directory (car sharper--last-publish))
             (command (cdr sharper--last-publish)))
-        (sharper--log "Publish command\n" command "\n")
+        (sharper--log-command "Publish" command)
         (sharper--run-async-shell command "*dotnet publish*")
         (pop-to-buffer "*dotnet publish*"))
     (sharper-transient-publish)))
@@ -174,7 +178,7 @@
   (if sharper--last-pack
       (let ((default-directory (car sharper--last-pack))
             (command (cdr sharper--last-pack)))
-        (sharper--log "Pack command\n" command "\n")
+        (sharper--log-command "Pack" command)
         (compile command))
     (sharper-transient-pack)))
 
@@ -186,7 +190,7 @@
   (if sharper--last-run
       (let ((default-directory (car sharper--last-run))
             (command (cdr sharper--last-run)))
-        (sharper--log "Run command\n" command "\n")
+        (sharper--log-command "Run" command)
         (sharper--run-async-shell command "*dotnet run*")
         (pop-to-buffer "*dotnet run*"))
     (sharper-transient-run)))
@@ -650,24 +654,32 @@
 
 (defun sharper--manage-solution ()
   (interactive)
-  (let ((solution (sharper--read-solution))
-        (buffer-name (generate-new-buffer-name
-                      "*dotnet solution*")))
+  (let* ((solution (sharper--read-solution))
+         (buffer-name (generate-new-buffer-name
+                       "*dotnet solution*")))
     (with-current-buffer (get-buffer-create buffer-name)
       (sharper--solution-management-mode)
       ;;buffer local variables
       (setq sharper--solution-path solution)
       (sharper--solution-management-refresh)
       (pop-to-buffer buffer-name)
-      (sharper--message "Listing solution projects. Press a to another project, r to remove the one under point, q to close the buffer."))))
+      (sharper--message (concat "Listing projects in "
+                                (file-name-nondirectory solution)
+                                ". Press \"a\" to see available actions." )))))
 
 (define-derived-mode sharper--solution-management-mode tabulated-list-mode "Sharper solution management" "Major mode to manage a dotnet solution."
   (setq tabulated-list-format [("Project" 200 nil)])
   (setq tabulated-list-padding 1)
   (tabulated-list-init-header))
 
-(define-key sharper--solution-management-mode-map (kbd "a") 'sharper--solution-management-add)
-(define-key sharper--solution-management-mode-map (kbd "r") 'sharper--solution-management-remove)
+(define-transient-command sharper-transient-solution ()
+  "dotnet sln menu"
+  ["Actions"
+   ("a" "add project to solution" sharper--solution-management-add)
+   ("r" "remove project under point from solution" sharper--solution-management-remove)
+   ("q" "quit" transient-quit-all)])
+
+(define-key sharper--solution-management-mode-map (kbd "a") 'sharper-transient-solution)
 
 (defun sharper--solution-management-refresh ()
   (setq tabulated-list-entries
@@ -676,23 +688,25 @@
 
 (defun sharper--solution-management-add ()
   (interactive)
-  (message
-   (shell-command-to-string
-    (concat "dotnet sln "
-            (shell-quote-argument sharper--solution-path)
-            " add "
-            (shell-quote-argument (sharper--read--project)))))
-  (sharper--solution-management-refresh))
+  (let ((default-directory (file-name-directory sharper--solution-path))
+        (command (concat "dotnet sln "
+                         (shell-quote-argument sharper--solution-path)
+                         " add "
+                         (shell-quote-argument (sharper--read--project)))))
+    (sharper--log-command "Add to solution" command)
+    (sharper--message (string-trim (shell-command-to-string command)))
+    (sharper--solution-management-refresh)))
 
 (defun sharper--solution-management-remove ()
   (interactive)
-  (message
-   (shell-command-to-string
-    (concat "dotnet sln "
-            (shell-quote-argument sharper--solution-path)
-            " remove "
-            (shell-quote-argument (tabulated-list-get-id)))))
-  (sharper--solution-management-refresh))
+  (let ((default-directory (file-name-directory sharper--solution-path))
+        (command (concat "dotnet sln "
+                         (shell-quote-argument sharper--solution-path)
+                         " remove "
+                         (shell-quote-argument (tabulated-list-get-id)))))
+    (sharper--log-command "Remove from solution" command)
+    (sharper--message (string-trim (shell-command-to-string command)))
+    (sharper--solution-management-refresh)))
 
 (provide 'sharper)
 ;;; sharper.el ends here

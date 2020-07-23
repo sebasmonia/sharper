@@ -1,7 +1,7 @@
 # sharper
 dotnet CLI wrapper, using Transient
 
-This is a [Transient-based](https://github.com/magit/transient) menu for the [dotnet CLI](https://docs.microsoft.com/en-us/dotnet/core/tools/). It aims to cover the most common scenarios, but I expect eventually all of the `dotnet` commans will be covered.
+This is a [Transient-based](https://github.com/magit/transient) menu for the [dotnet CLI](https://docs.microsoft.com/en-us/dotnet/core/tools/). It aims to cover the most common scenarios, but I expect eventually all of the `dotnet` commans will be implemented.
 
 ## Table of contents
 
@@ -41,6 +41,6 @@ Build menu (as of 2020-07-21):
 # Future features:
 
 * Whatever I keep adding in the issues :)
-* Solution management (add projects to solution, remove them)
+* ~~Solution management (add projects to solution, remove them)~~
 * Adding/removing references between projects
 * `dotnet nuget` commands. This will probably use a tablist-based UI to list the installed packages etc.
