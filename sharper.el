@@ -100,6 +100,8 @@
 
 (defvar-local sharper--solution-path nil "Used in `sharper--solution-management-mode' to store the current solution.")
 
+(defvar-local sharper--project-path nil "Used in `sharper--project-references-mode' to store the current project.")
+
 
 ;;------------------Main transient------------------------------------------------
 
@@ -117,12 +119,15 @@
   ["Publish app"
    ("P" "new publish" sharper-transient-publish)
    ("p" "repeat last publish" sharper--run-last-publish)]
-  ["Pack to .nupkg file"
+  ["Generating a nuget package file"
    ("N" "new package" sharper-transient-pack)
-   ("n" "rebuild last package" sharper--run-last-pack)]
+   ("n" "rebuild last package" sharper--run-last-pack)
+   ;;("wp" "wizard for package metadata" sharper-transient-???)
+   ]
   ["Solution & project management"
    ("ms" "Manage solution" sharper--manage-solution)
-   ] ;; ("mp" "Manage project references" sharper--manage-project-ref)]
+   ("mr" "Manage project references" sharper--manage-project-references)
+   ] ;; ("mn" "Manage project packages" sharper--manage-project-packages)]
   ["Misc commands"
    ("c" "clean" sharper-transient-clean)
    ("v" "version info (SDK & runtimes)" sharper--version-info)
@@ -303,7 +308,7 @@
 (defun sharper--read--project ()
   "Offer completion for project files under the current project's root."
   (let ((all-files (project-files (project-current t))))
-    (completing-read "Select project or solution: "
+    (completing-read "Select project: "
                      all-files
                      #'sharper--filename-proj-p)))
 
@@ -640,7 +645,7 @@
    ("r" "run" sharper--run)
    ("q" "quit" transient-quit-all)])
 
-;;------------------dotnet sln----------------------------------------------------
+;;------------------dotnet solution management------------------------------------
 
 (defun sharper--format-solution-projects (path)
   (cl-labels ((convert-to-entry (project)
@@ -654,17 +659,17 @@
 
 (defun sharper--manage-solution ()
   (interactive)
-  (let* ((solution (sharper--read-solution))
-         (buffer-name (generate-new-buffer-name
-                       "*dotnet solution*")))
+  (let* ((solution-full-path (sharper--read-solution))
+         (solution-filename (file-name-nondirectory solution-full-path))
+         (buffer-name (format "*solution %s* " solution-filename)))
     (with-current-buffer (get-buffer-create buffer-name)
       (sharper--solution-management-mode)
       ;;buffer local variables
-      (setq sharper--solution-path solution)
+      (setq sharper--solution-path solution-full-path)
       (sharper--solution-management-refresh)
       (pop-to-buffer buffer-name)
       (sharper--message (concat "Listing projects in "
-                                (file-name-nondirectory solution)
+                                solution-filename
                                 ". Press \"a\" to see available actions." )))))
 
 (define-derived-mode sharper--solution-management-mode tabulated-list-mode "Sharper solution management" "Major mode to manage a dotnet solution."
@@ -677,6 +682,8 @@
   ["Actions"
    ("a" "add project to solution" sharper--solution-management-add)
    ("r" "remove project under point from solution" sharper--solution-management-remove)
+   ("p" "see project references" sharper--solution-management-open-proj-ref)
+   ("n" "see project packages" sharper--solution-management-add)
    ("q" "quit" transient-quit-all)])
 
 (define-key sharper--solution-management-mode-map (kbd "a") 'sharper-transient-solution)
@@ -707,6 +714,85 @@
     (sharper--log-command "Remove from solution" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--solution-management-refresh)))
+
+(defun sharper--solution-management-open-proj-ref ()
+  (interactive)
+  ;; SOOOO...in Windows sln-directory has / separators
+  ;; and project-relative-path has \\ separators, but _somehow_
+  ;; the concatenation still works as intended :thinking:
+  (let ((sln-directory (file-name-directory sharper--solution-path))
+        (project-relative-path (tabulated-list-get-id)))
+        (sharper--manage-project-references (concat sln-directory
+                                                    project-relative-path))))
+
+;;------------------dotnet project references-------------------------------------
+
+(defun sharper--manage-project-references (project-full-path)
+  (interactive
+   (list (sharper--read--project)))
+  (let* ((project-filename (file-name-nondirectory project-full-path))
+         (buffer-name (format "*references %s* " project-filename)))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (sharper--project-references-mode)
+      ;;buffer local variables
+      (setq sharper--project-path project-full-path)
+      (sharper--project-references-refresh)
+      (pop-to-buffer buffer-name)
+      (sharper--message (concat "Listing projects in "
+                                project-filename
+                                ". Press \"a\" to see available actions." )))))
+
+(defun sharper--format-project-references (path)
+  (cl-labels ((convert-to-entry (reference)
+                                (list reference (vector reference))))
+    (let ((dotnet-list-output (shell-command-to-string
+                               (concat "dotnet list "
+                                       (shell-quote-argument path)
+                                       " reference"))))
+      (mapcar #'convert-to-entry
+              (nthcdr 2 (split-string dotnet-list-output "\n" t))))))
+
+(define-derived-mode sharper--project-references-mode tabulated-list-mode "Sharper project references" "Major mode to manage project references."
+  (setq tabulated-list-format [("Reference" 200 nil)])
+  (setq tabulated-list-padding 1)
+  (tabulated-list-init-header))
+
+(define-transient-command sharper-transient-project-references ()
+  "Project references menu"
+  ["Actions"
+   ("a" "add reference" sharper--project-reference-add)
+   ("r" "remove reference under point" sharper--project-reference-remove)
+   ("n" "switch to packages view" sharper--solution-management-add)
+   ("q" "quit" transient-quit-all)])
+
+(define-key sharper--project-references-mode-map (kbd "a") 'sharper-transient-project-references)
+
+(defun sharper--project-references-refresh ()
+  (setq tabulated-list-entries
+        (sharper--format-project-references sharper--project-path))
+  (tabulated-list-print))
+
+(defun sharper--project-reference-add ()
+  (interactive)
+  (let ((default-directory (file-name-directory sharper--project-path))
+        (command (concat "dotnet add "
+                         (shell-quote-argument sharper--project-path)
+                         " reference "
+                         (shell-quote-argument (sharper--read--project)))))
+    (sharper--log-command "Add project reference" command)
+    (sharper--message (string-trim (shell-command-to-string command)))
+    (sharper--project-references-refresh)))
+
+(defun sharper--project-reference-remove ()
+  (interactive)
+  (let ((default-directory (file-name-directory sharper--project-path))
+        (command (concat "dotnet remove "
+                         (shell-quote-argument sharper--project-path)
+                         " reference "
+                         (shell-quote-argument (tabulated-list-get-id)))))
+    (sharper--log-command "Remove project reference" command)
+    (sharper--message (string-trim (shell-command-to-string command)))
+    (sharper--project-references-refresh)))
 
 (provide 'sharper)
 ;;; sharper.el ends here
