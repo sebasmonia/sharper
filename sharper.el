@@ -93,6 +93,10 @@
 (defvar sharper--last-pack nil "A cons cell (directory . last command used to create a NuGet package)")
 (defvar sharper--last-run nil "A cons cell (directory . last command used for \"dotnet run\")")
 
+
+(defvar-local sharper--solution-path nil "Used in `sharper--solution-management-mode' to store the current solution.")
+
+
 ;;------------------Main transient------------------------------------------------
 
 (define-transient-command sharper-main-transient ()
@@ -112,6 +116,9 @@
   ["Pack to .nupkg file"
    ("N" "new package" sharper-transient-pack)
    ("n" "rebuild last package" sharper--run-last-pack)]
+  ["Solution & project management"
+   ("ms" "Manage solution" sharper--manage-solution)
+   ] ;; ("mp" "Manage project references" sharper--manage-project-ref)]
   ["Misc commands"
    ("c" "clean" sharper-transient-clean)
    ("v" "version info (SDK & runtimes)" sharper--version-info)
@@ -184,11 +191,9 @@
         (pop-to-buffer "*dotnet run*"))
     (sharper-transient-run)))
 
-(defun sharper--version-info (&optional transient-params)
-  "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-pack'."
-  (interactive
-   (list (transient-args 'sharper-main-transient)))
-  (transient-set)
+(defun sharper--version-info ()
+  "Run version info for SDKs, runtime, etc."
+  (interactive)
   (message "Compiling \"dotnet\" information...")
   (let ((dotnet-path (shell-command-to-string (if (string= system-type "windows-nt")
                                                   "where dotnet"
@@ -267,17 +272,6 @@
                                  (or path
                                      default-directory))))
 
-(defun sharper--path-directory (path)
-  "Get the directory name PATH.
-The only reason this is a function and not a plain call to `file-name-directory'
-is because of quoted path issues on Windows."
-  ;; TODO: maybe don't quote path when pulling the arg?
-  ;; It works on Linux, breaks on Windows...
-  ;; ALso "shell unquote" doesn't seem to be an possibility
-  (when (string= system-type "windows-nt")
-    (setq path (substring path 1 -1)))
-  (file-name-directory path))
-
 (defun sharper--filename-proj-or-sln-p (filename)
   "Return non-nil if FILENAME is a project or solution."
   (let ((extension (file-name-extension filename)))
@@ -289,6 +283,11 @@ is because of quoted path issues on Windows."
   "Return non-nil if FILENAME is a project."
   (let ((extension (file-name-extension filename)))
     (member extension sharper-project-extensions)))
+
+(defun sharper--filename-sln-p (filename)
+  "Return non-nil if FILENAME is a solution."
+  (let ((extension (file-name-extension filename)))
+    (string= "sln" extension)))
 
 (defun sharper--read-solution-or-project ()
   "Offer completion for project or solution files under the current project's root."
@@ -304,12 +303,12 @@ is because of quoted path issues on Windows."
                      all-files
                      #'sharper--filename-proj-p)))
 
-(defun sharper--read-solution-or-project ()
-  "Offer completion for project or solution files under the current project's root."
+(defun sharper--read-solution ()
+  "Offer completion for solution files under the current project's root."
   (let ((all-files (project-files (project-current t))))
-    (completing-read "Select project or solution: "
+    (completing-read "Select a solution: "
                      all-files
-                     #'sharper--filename-proj-or-sln-p)))
+                     #'sharper--filename-sln-p)))
 
 ;; TODO: it would be really nice if this validated the format
 (defun sharper--read-msbuild-properties ()
@@ -351,9 +350,7 @@ is because of quoted path issues on Windows."
   "Call `async-shell-command' to run COMMAND using a buffer BUFFER-NAME."
   (let ((le-buffer (generate-new-buffer (generate-new-buffer-name
                                          buffer-name))))
-    (pop-to-buffer le-buffer)
     (async-shell-command command le-buffer le-buffer)))
-
 
 ;;------------------dotnet build--------------------------------------------------
 
@@ -597,7 +594,7 @@ is because of quoted path issues on Windows."
          (app-args (sharper--get-argument "<ApplicationArguments>=" transient-params))
          ;; For run we want this to execute in the same directory
          ;; that the project is, where the .settings file is
-         (directory (sharper--path-directory target)))
+         (directory (file-name-directory target)))
     (unless target ;; it is possible to run without a target :shrug:
       (sharper--message "No TARGET provided, will run in default directory."))
     (let ((command (format-spec sharper--run-template
@@ -638,6 +635,64 @@ is because of quoted path issues on Windows."
   ["Actions"
    ("r" "run" sharper--run)
    ("q" "quit" transient-quit-all)])
+
+;;------------------dotnet sln----------------------------------------------------
+
+(defun sharper--format-solution-projects (path)
+  (cl-labels ((convert-to-entry (project)
+                                (list project (vector project))))
+    (let ((dotnet-sln-output (shell-command-to-string
+                              (concat "dotnet sln "
+                                      (shell-quote-argument path)
+                                      " list"))))
+      (mapcar #'convert-to-entry
+              (nthcdr 2 (split-string dotnet-sln-output "\n" t))))))
+
+(defun sharper--manage-solution ()
+  (interactive)
+  (let ((solution (sharper--read-solution))
+        (buffer-name (generate-new-buffer-name
+                      "*dotnet solution*")))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (sharper--solution-management-mode)
+      ;;buffer local variables
+      (setq sharper--solution-path solution)
+      (sharper--solution-management-refresh)
+      (pop-to-buffer buffer-name)
+      (sharper--message "Listing solution projects. Press a to another project, r to remove the one under point, q to close the buffer."))))
+
+(define-derived-mode sharper--solution-management-mode tabulated-list-mode "Sharper solution management" "Major mode to manage a dotnet solution."
+  (setq tabulated-list-format [("Project" 200 nil)])
+  (setq tabulated-list-padding 1)
+  (tabulated-list-init-header))
+
+(define-key sharper--solution-management-mode-map (kbd "a") 'sharper--solution-management-add)
+(define-key sharper--solution-management-mode-map (kbd "r") 'sharper--solution-management-remove)
+
+(defun sharper--solution-management-refresh ()
+  (setq tabulated-list-entries
+        (sharper--format-solution-projects sharper--solution-path))
+  (tabulated-list-print))
+
+(defun sharper--solution-management-add ()
+  (interactive)
+  (message
+   (shell-command-to-string
+    (concat "dotnet sln "
+            (shell-quote-argument sharper--solution-path)
+            " add "
+            (shell-quote-argument (sharper--read--project)))))
+  (sharper--solution-management-refresh))
+
+(defun sharper--solution-management-remove ()
+  (interactive)
+  (message
+   (shell-command-to-string
+    (concat "dotnet sln "
+            (shell-quote-argument sharper--solution-path)
+            " remove "
+            (shell-quote-argument (tabulated-list-get-id)))))
+  (sharper--solution-management-refresh))
 
 (provide 'sharper)
 ;;; sharper.el ends here
