@@ -424,7 +424,7 @@ is because of quoted path issues on Windows."
 (define-infix-argument sharper--option-test-runsettings ()
   :description "<RunSettings>"
   :class 'transient-option
-  :shortarg "RS"
+  :shortarg "rs"
   :argument "<RunSettings>="
   :reader (lambda (_prompt _initial-input _history)
             (read-string "RunSettings arguments: ")))
@@ -612,7 +612,7 @@ is because of quoted path issues on Windows."
 (define-infix-argument sharper--option-run-application-arguments ()
   :description "Application arguments"
   :class 'transient-option
-  :shortarg "AA"
+  :shortarg "aa"
   :argument "<ApplicationArguments>="
   :reader (lambda (_prompt _initial-input _history)
             (read-string "Application arguments: ")))
