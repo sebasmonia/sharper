@@ -42,5 +42,7 @@ Build menu (as of 2020-07-21):
 
 * Whatever I keep adding in the issues :)
 * ~~Solution management (add projects to solution, remove them)~~
-* Adding/removing references between projects
+* ~~Adding/removing references between projects~~
 * `dotnet nuget` commands. This will probably use a tablist-based UI to list the installed packages etc.
+* NuGet package name & versions completion
+
