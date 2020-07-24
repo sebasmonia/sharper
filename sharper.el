@@ -28,7 +28,6 @@
 
 ;;; Code:
 
-
 ;;------------------Package infrastructure----------------------------------------
 
 (require 'transient)
@@ -897,8 +896,9 @@
 (define-key sharper--project-packages-mode-map (kbd "g") 'sharper--project-packages-refresh)
 
 (defun sharper--project-packages-transient-if-package ()
-  "Show a message if the current item is not a package, else active `sharper-transient-project-packages'.
-Technically adding a package doesn't need this check, but it makes things easier so, meh."
+  "Activate `sharper-transient-project-packages' only if a package is selected.
+In other case, show a message.  Technically adding a package doesn't need this
+check, but it makes things easier so, meh."
   (interactive)
   (if (tabulated-list-get-id)
       (sharper-transient-project-packages)
