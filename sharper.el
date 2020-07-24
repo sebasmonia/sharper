@@ -79,7 +79,7 @@
 ;; %s = SOLUTION
 ;; %m = MS BUILD PROPERTIES (-p:Prop1=Val1 -p:Prop2=Val2 )
 ;; %a = RUN SETTINGS (dotnet test) or APPLICATION ARGUMENTS (dotnet run)
-
+;; %p = PROJECT (when project != target)
 ;; %k = PACKAGE NAME
 (defvar sharper--build-template "dotnet build %t %o %m" "Template for \"dotnet build\" invocations.")
 (defvar sharper--test-template "dotnet test %t %o %a" "Template for \"dotnet test\" invocations.")
@@ -87,6 +87,15 @@
 (defvar sharper--publish-template "dotnet publish %t %o" "Template for \"dotnet publish\" invocations.")
 (defvar sharper--pack-template "dotnet pack %t %o %m" "Template for \"dotnet pack\" invocations.")
 (defvar sharper--run-template "dotnet run --project %t %o %a" "Template for \"dotnet run\" invocations.")
+(defvar sharper--sln-list-template "dotnet sln %t list" "Template for \"dotnet sln list\" invocations.")
+(defvar sharper--sln-add-template "dotnet sln %t add %p" "Template for \"dotnet sln add\" invocations.")
+(defvar sharper--sln-remove-template "dotnet sln %t remove %p" "Template for \"dotnet sln remove\" invocations.")
+(defvar sharper--reference-list-template "dotnet list %t reference" "Template for \"dotnet list reference\" invocations.")
+(defvar sharper--reference-add-template "dotnet add %t reference %p" "Template for \"dotnet add reference\" invocations.")
+(defvar sharper--reference-remove-template "dotnet remove %t reference %p" "Template for \"dotnet remove reference\" invocations.")
+(defvar sharper--package-list-template "dotnet list %t package" "Template for \"dotnet list package\" invocations.")
+(defvar sharper--package-add-template "dotnet add %t package %k %o" "Template for \"dotnet add package\" invocations.")
+(defvar sharper--package-remove-template "dotnet remove %t package %k" "Template for \"dotnet remove package\" invocations.")
 
 
 ;; NOTE: if I start needing more than just default-dir + command I might as well create
@@ -127,7 +136,7 @@
   ["Solution & project management"
    ("ms" "Manage solution" sharper--manage-solution)
    ("mr" "Manage project references" sharper--manage-project-references)
-   ] ;; ("mn" "Manage project packages" sharper--manage-project-packages)]
+   ("mp" "Manage project packages" sharper--manage-project-packages)]
   ["Misc commands"
    ("c" "clean" sharper-transient-clean)
    ("v" "version info (SDK & runtimes)" sharper--version-info)
@@ -651,12 +660,12 @@
   "Get and format the projects for the solution in PATH for `sharper--solution-management-mode'."
   (cl-labels ((convert-to-entry (project)
                                 (list project (vector project))))
-    (let ((dotnet-sln-output (shell-command-to-string
-                              (concat "dotnet sln "
-                                      (shell-quote-argument path)
-                                      " list"))))
+    (let ((command (format-spec sharper--sln-list-template
+                                (format-spec-make ?t (shell-quote-argument path)))))
+      (sharper--log-command "List solution projects" command)
       (mapcar #'convert-to-entry
-              (nthcdr 2 (split-string dotnet-sln-output "\n" t))))))
+              (nthcdr 2 (split-string (shell-command-to-string command)
+                                      "\n" t))))))
 
 (defun sharper--manage-solution ()
   "Prompt for a solution and start `sharper--solution-management-mode' for it."
@@ -683,15 +692,18 @@
   "dotnet sln menu"
   ["Actions"
    ("a" "add project to solution" sharper--solution-management-add)
-   ("r" "remove project under point from solution" sharper--solution-management-remove)
-   ("p" "see project references" sharper--solution-management-open-proj-ref)
-   ("n" "see project packages" sharper--solution-management-add)
+   ("r" "remove project at point from solution" sharper--solution-management-remove)
+   ("e" "manage project references" sharper--solution-management-open-proj-ref)
+   ("p" "manage project packages" sharper--solution-management-open-proj-pack)
+   ("l" "list packages for all projects in the solution" sharper--solution-management-packages)
    ("q" "quit" transient-quit-all)])
 
 (define-key sharper--solution-management-mode-map (kbd "a") 'sharper-transient-solution)
+(define-key sharper--solution-management-mode-map (kbd "g") 'sharper--solution-management-refresh)
 
 (defun sharper--solution-management-refresh ()
   "Update the tablist view in `sharper--solution-management-mode'."
+  (interactive)
   (setq tabulated-list-entries
         (sharper--format-solution-projects sharper--solution-path))
   (tabulated-list-print))
@@ -700,28 +712,38 @@
   "Add a project to the current solution."
   (interactive)
   (let ((default-directory (file-name-directory sharper--solution-path))
-        (command (concat "dotnet sln "
-                         (shell-quote-argument sharper--solution-path)
-                         " add "
-                         (shell-quote-argument (sharper--read--project)))))
+        (command (format-spec sharper--sln-add-template
+                              (format-spec-make ?t (shell-quote-argument sharper--solution-path)
+                                                ?p (shell-quote-argument (sharper--read--project))))))
     (sharper--log-command "Add to solution" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--solution-management-refresh)))
 
 (defun sharper--solution-management-remove ()
-  "Remove the project under point from the solution."
+  "Remove the project at point from the solution."
   (interactive)
   (let ((default-directory (file-name-directory sharper--solution-path))
-        (command (concat "dotnet sln "
-                         (shell-quote-argument sharper--solution-path)
-                         " remove "
-                         (shell-quote-argument (tabulated-list-get-id)))))
+        (command (format-spec sharper--sln-remove-template
+                              (format-spec-make ?t (shell-quote-argument sharper--solution-path)
+                                                ?p (shell-quote-argument (tabulated-list-get-id))))))
     (sharper--log-command "Remove from solution" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--solution-management-refresh)))
 
+(defun sharper--solution-management-packages ()
+  "List the packages of all projects in the solution."
+  (interactive)
+  (let ((default-directory (file-name-directory sharper--solution-path))
+        (command (format-spec sharper--package-list-template
+                              (format-spec-make ?t (shell-quote-argument sharper--solution-path)))))
+    (sharper--log-command "List solution packages" command)
+    (sharper--run-async-shell command
+                              (concat "*packages "
+                                      (file-name-nondirectory sharper--solution-path)
+                                      "*"))))
+
 (defun sharper--solution-management-open-proj-ref ()
-  "Open `sharper--project-references-mode' for the project under point."
+  "Open `sharper--project-references-mode' for the project at point."
   (interactive)
   ;; SOOOO...in Windows sln-directory has / separators
   ;; and project-relative-path has \\ separators, but _somehow_
@@ -730,6 +752,15 @@
         (project-relative-path (tabulated-list-get-id)))
         (sharper--manage-project-references (concat sln-directory
                                                     project-relative-path))))
+
+(defun sharper--solution-management-open-proj-pack ()
+  "Open `sharper--project-references-mode' for the project at point."
+  (interactive)
+  ;; same path note as above applies... :shrug:
+  (let ((sln-directory (file-name-directory sharper--solution-path))
+        (project-relative-path (tabulated-list-get-id)))
+        (sharper--manage-project-packages (concat sln-directory
+                                                  project-relative-path))))
 
 ;;------------------dotnet project references-------------------------------------
 
@@ -753,12 +784,13 @@
    "Get and format the project reference for the proejct in PATH for `sharper--project-references-mode'."
   (cl-labels ((convert-to-entry (reference)
                                 (list reference (vector reference))))
-    (let ((dotnet-list-output (shell-command-to-string
-                               (concat "dotnet list "
-                                       (shell-quote-argument path)
-                                       " reference"))))
+    (let ((command (format-spec sharper--reference-list-template
+                                (format-spec-make ?t (shell-quote-argument path)))))
+      (sharper--log-command "List project references" command)
       (mapcar #'convert-to-entry
-              (nthcdr 2 (split-string dotnet-list-output "\n" t))))))
+              (nthcdr 2 (split-string
+                         (shell-command-to-string command)
+                         "\n" t))))))
 
 (define-derived-mode sharper--project-references-mode tabulated-list-mode "Sharper project references" "Major mode to manage project references."
   (setq tabulated-list-format [("Reference" 200 nil)])
@@ -769,43 +801,168 @@
   "Project references menu"
   ["Actions"
    ("a" "add reference" sharper--project-reference-add)
-   ("r" "remove reference under point" sharper--project-reference-remove)
-   ("n" "switch to packages view" sharper--solution-management-add)
+   ("r" "remove reference at point" sharper--project-reference-remove)
+   ("s" "switch to packages view" sharper--project-reference-switch-to-packages)
    ("q" "quit" transient-quit-all)])
 
 (define-key sharper--project-references-mode-map (kbd "a") 'sharper-transient-project-references)
+(define-key sharper--project-references-mode-map (kbd "g") 'sharper--project-references-refresh)
 
 (defun sharper--project-references-refresh ()
   "Update the tablist view in `sharper--project-references-mode'."
+  (interactive)
   (setq tabulated-list-entries
         (sharper--format-project-references sharper--project-path))
   (tabulated-list-print))
+
+(defun sharper--project-reference-switch-to-packages ()
+  "Switch from references view to packages view."
+  (interactive)
+  (sharper--manage-project-packages sharper--project-path))
 
 (defun sharper--project-reference-add ()
   "Add a project reference to the current project."
   (interactive)
   (let ((default-directory (file-name-directory sharper--project-path))
-        (command (concat "dotnet add "
-                         (shell-quote-argument sharper--project-path)
-                         " reference "
-                         (shell-quote-argument (sharper--read--project)))))
+        (command (format-spec sharper--reference-add-template
+                              (format-spec-make ?t (shell-quote-argument sharper--project-path)
+                                                ?p (shell-quote-argument (sharper--read--project))))))
     (sharper--log-command "Add project reference" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--project-references-refresh)))
 
 (defun sharper--project-reference-remove ()
-  "Remove the project under point from the current project's references."
+  "Remove the project at point from the current project's references."
   (interactive)
   (let ((default-directory (file-name-directory sharper--project-path))
-        (command (concat "dotnet remove "
-                         (shell-quote-argument sharper--project-path)
-                         " reference "
-                         (shell-quote-argument (tabulated-list-get-id)))))
+        (command (format-spec sharper--reference-remove-template
+                              (format-spec-make ?t (shell-quote-argument sharper--project-path-path)
+                                                ?p (shell-quote-argument (tabulated-list-get-id))))))
     (sharper--log-command "Remove project reference" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--project-references-refresh)))
 
 ;;------------------dotnet project packages---------------------------------------
+
+(defun sharper--manage-project-packages (project-full-path)
+  "Prompt for PROJECT-FULL-PATH if not provided,  and start `sharper--project-packages-mode' for it."
+  (interactive
+   (list (sharper--read--project)))
+  (let* ((project-filename (file-name-nondirectory project-full-path))
+         (buffer-name (format "*packages %s* " project-filename)))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (sharper--project-packages-mode)
+      ;;buffer local variables
+      (setq sharper--project-path project-full-path)
+      (sharper--project-packages-refresh)
+      (pop-to-buffer buffer-name)
+      (sharper--message (concat "Listing packages in "
+                                project-filename
+                                ". Press \"a\" to see available actions." )))))
+
+(defun sharper--format-project-packages (path)
+  "Get and format the project reference for the project in PATH for `sharper--project-references-mode'."
+  (sharper--message "Running restore and retrieving list of packages...")
+  (let ((restore-command (concat "dotnet restore "
+                                 (shell-quote-argument path))))
+    (sharper--log-command "Restore project packages" restore-command)
+    (shell-command-to-string restore-command))
+   (cl-labels ((extract-pack-name (line)
+                                  (when (string-match-p " >" line)
+                                      (cl-second (split-string line))))
+               (convert-to-entry (line)
+                                (list (extract-pack-name line) (vector line))))
+     (let ((command (format-spec sharper--package-list-template
+                                 (format-spec-make ?t (shell-quote-argument path)))))
+       (sharper--log-command "List project packages" command)
+       (mapcar #'convert-to-entry
+               (nthcdr 2 (split-string (shell-command-to-string command)
+                                       "\n" t))))))
+
+(define-derived-mode sharper--project-packages-mode tabulated-list-mode "Sharper project packages" "Major mode to manage project packages."
+  (setq tabulated-list-format [("Packages info" 300 nil)])
+  (setq tabulated-list-padding 1)
+  (tabulated-list-init-header))
+
+(define-transient-command sharper-transient-project-packages ()
+  "Project references menu"
+  ["Actions"
+   ("a" "add package" sharper-transient-add-package)
+   ("r" "remove package at point" sharper--project-package-remove)
+   ("v" "change package at point to specific (or latest version)" sharper--project-reference-remove)
+   ("s" "switch to references view" sharper--project-package-switch-to-references)
+   ("q" "quit" transient-quit-all)])
+
+(define-key sharper--project-packages-mode-map (kbd "a") 'sharper--project-packages-transient-if-package)
+(define-key sharper--project-packages-mode-map (kbd "g") 'sharper--project-packages-refresh)
+
+(defun sharper--project-packages-transient-if-package ()
+  "Show a message if the current item is not a package, else active `sharper-transient-project-packages'.
+Technically adding a package doesn't need this check, but it makes things easier so, meh."
+  (interactive)
+  (if (tabulated-list-get-id)
+      (sharper-transient-project-packages)
+    (sharper--message "Point is not under a package.")))
+
+(defun sharper--project-package-switch-to-references ()
+  "Switch from packages view to references view."
+  (interactive)
+  (sharper--manage-project-references sharper--project-path))
+
+(defun sharper--project-packages-refresh ()
+  "Update the tablist view in `sharper--project-packages-mode'."
+  (interactive)
+  (setq tabulated-list-entries
+        (sharper--format-project-packages sharper--project-path))
+  (tabulated-list-print))
+
+(defun sharper--project-package-remove ()
+  "Remove the package at point from the current project."
+  (interactive)
+  (let ((default-directory (file-name-directory sharper--project-path))
+        (command (format-spec sharper--package-remove-template
+                              (format-spec-make ?t (shell-quote-argument sharper--project-path)
+                                                ?k (shell-quote-argument (tabulated-list-get-id))))))
+    (sharper--log-command "Remove project package" command)
+    (sharper--message (string-trim (shell-command-to-string command)))
+    (sharper--project-packages-refresh)))
+
+(define-infix-argument sharper--option-add-package-name ()
+  :description "Package name"
+  :class 'transient-option
+  :shortarg "pn"
+  :argument "<PackageName>="
+  :reader (lambda (_prompt _initial-input _history)
+            (read-string "Package name: ")))
+
+(define-transient-command sharper-transient-add-package ()
+  "dotnet add package  menu"
+  ["Common Arguments"
+   (sharper--option-add-package-name)
+   ("-v" "Version" "--version=")]
+  ["Other Arguments"
+   ("-w" "Framework" "--framework=")
+   ("-nr" "No restore" "--no-restore")
+   ("-s" "Source" "--source=")
+   ("-pd" "Package directory" "--package-directory")]
+  ["Actions"
+   ("a" "add" sharper--package-add)
+   ("q" "quit" transient-quit-all)])
+
+(defun sharper--package-add (&optional transient-params)
+  "Run \"dotnet add package\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-add-package)))
+  (transient-set)
+  (let* ((package-name (sharper--get-argument "<PackageName>=" transient-params))
+         (options (sharper--only-options transient-params))
+         (command (format-spec sharper--package-add-template
+                               (format-spec-make ?t (shell-quote-argument sharper--project-path)
+                                                 ?k (shell-quote-argument package-name)
+                                                 ?o (sharper--option-alist-to-string options)))))
+    (sharper--log-command "Add project package" command)
+    (sharper--message (string-trim (shell-command-to-string command)))
+    (sharper--project-packages-refresh)))
 
 (provide 'sharper)
 ;;; sharper.el ends here
