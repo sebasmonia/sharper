@@ -902,21 +902,16 @@ Just a facility to make these invocations shorter."
   ["Actions"
    ("a" "add package" sharper-transient-add-package)
    ("r" "remove package at point" sharper--project-package-remove)
-   ("v" "change package at point to specific (or latest version)" sharper--project-reference-remove)
+   ;; TODO: package updates
+   ;; Trying to add the package again is enough to get it bumped to latest version
+   ;; HOWEVER, picking up versions with completion depends on nuget search and other unfinished features.
+   ;; so the time being, we can leave this disabled
+   ;; ("v" "change package at point to specific (or latest version)" sharper--project-reference-remove)
    ("s" "switch to references view" sharper--project-package-switch-to-references)
    ("q" "quit" transient-quit-all)])
 
-(define-key sharper--project-packages-mode-map (kbd "a") 'sharper--project-packages-transient-if-package)
+(define-key sharper--project-packages-mode-map (kbd "a") 'sharper-transient-project-packages)
 (define-key sharper--project-packages-mode-map (kbd "g") 'sharper--project-packages-refresh)
-
-(defun sharper--project-packages-transient-if-package ()
-  "Activate `sharper-transient-project-packages' only if a package is selected.
-In other case, show a message.  Technically adding a package doesn't need this
-check, but it makes things easier so, meh."
-  (interactive)
-  (if (tabulated-list-get-id)
-      (sharper-transient-project-packages)
-    (sharper--message "Point is not under a package.")))
 
 (defun sharper--project-package-switch-to-references ()
   "Switch from packages view to references view."
@@ -933,13 +928,16 @@ check, but it makes things easier so, meh."
 (defun sharper--project-package-remove ()
   "Remove the package at point from the current project."
   (interactive)
-  (let ((default-directory (file-name-directory sharper--project-path))
-        (command (sharper--strformat sharper--package-remove-template
-                                     ?t (shell-quote-argument sharper--project-path)
-                                     ?k (shell-quote-argument (tabulated-list-get-id)))))
-    (sharper--log-command "Remove project package" command)
-    (sharper--message (string-trim (shell-command-to-string command)))
-    (sharper--project-packages-refresh)))
+  (let ((package-name (tabulated-list-get-id)))
+    (if (not package-name)
+        (sharper--message "No package to remove under point.")
+      (let ((default-directory (file-name-directory sharper--project-path))
+            (command (sharper--strformat sharper--package-remove-template
+                                         ?t (shell-quote-argument sharper--project-path)
+                                         ?k (shell-quote-argument package-name))))
+        (sharper--log-command "Remove project package" command)
+        (sharper--message (string-trim (shell-command-to-string command)))
+        (sharper--project-packages-refresh)))))
 
 (define-infix-argument sharper--option-add-package-name ()
   :description "Package name"
@@ -968,6 +966,7 @@ check, but it makes things easier so, meh."
   (interactive
    (list (transient-args 'sharper-transient-add-package)))
   (transient-set)
+  (sharper--message "Adding package...")
   (let* ((package-name (sharper--get-argument "<PackageName>=" transient-params))
          (options (sharper--only-options transient-params))
          (command (sharper--strformat sharper--package-add-template
