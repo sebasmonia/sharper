@@ -23,6 +23,9 @@
 ;;       (require 'sharper)
 ;;       (global-set-key (kbd "C-c n") 'sharper-main-transient) ;; For "n" for "dot NET"
 ;;
+;; Some commands show lists of items.  In those cases, "a" shows the transient with the Actions
+;; available.
+;;
 ;; For a detailed user manual see:
 ;; https://github.com/sebasmonia/sharper/blob/master/README.md
 
