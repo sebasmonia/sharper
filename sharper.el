@@ -282,6 +282,20 @@
       ""
     (shell-quote-argument param)))
 
+;;------------------format-spec facilities----------------------------------------
+
+(defun sharper--strformat (template-name &rest args)
+  "Apply `format-spec' to TEMPLATE-NAME using ARGS as key-value pairs.
+Just a facility to make these invocations shorter."
+  (format-spec template-name
+               (sharper--as-alist args)))
+
+(defun sharper--as-alist (the-list)
+  "Convert THE-LIST to an alist by looping over the elements by pairs."
+  ;; From this SO answer https://stackoverflow.com/a/19774752/91877
+  (cl-loop for (head . tail) on the-list by 'cddr
+           collect (cons head (car tail))))
+
 ;;------------------dotnet common-------------------------------------------------
 
 (defun sharper--project-root (&optional path)
@@ -384,10 +398,10 @@
          (directory (sharper--project-root target)))
     (unless target ;; it is possible to build without a target :shrug:
       (sharper--message "No TARGET provided, will build in default directory."))
-    (let ((command (format-spec sharper--build-template
-                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
-                                                  ?o (sharper--option-alist-to-string options)
-                                                  ?m (sharper--shell-quote-or-empty  msbuild-props)))))
+    (let ((command (sharper--strformat sharper--build-template
+                                       ?t (sharper--shell-quote-or-empty target)
+                                       ?o (sharper--option-alist-to-string options)
+                                       ?m (sharper--shell-quote-or-empty  msbuild-props))))
       (setq sharper--last-build (cons directory command))
       (sharper--run-last-build))))
 
@@ -426,12 +440,12 @@
          (directory (sharper--project-root target)))
     (unless target ;; it is possible to test without a target :shrug:
       (sharper--message "No TARGET provided, will run tests in default directory."))
-    (let ((command (format-spec sharper--test-template
-                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
-                                                  ?o (sharper--option-alist-to-string options)
-                                                  ?a (if run-settings
-                                                         (concat "-- " runtime-settings)
-                                                       "")))))
+    (let ((command (sharper--strformat sharper--test-template
+                                       ?t (sharper--shell-quote-or-empty target)
+                                       ?o (sharper--option-alist-to-string options)
+                                       ?a (if run-settings
+                                              (concat "-- " runtime-settings)
+                                            ""))))
       (setq sharper--last-test (cons directory command))
       (sharper--run-last-test))))
 
@@ -486,9 +500,9 @@
          (default-directory (sharper--project-root target)))
     (unless target ;; it is possible to build without a target :shrug:
       (sharper--message "No TARGET provided, will run clean in default directory."))
-    (let ((command (format-spec sharper--clean-template
-                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
-                                                  ?o (sharper--option-alist-to-string options)))))
+    (let ((command (sharper--strformat sharper--clean-template
+                                       ?t (sharper--shell-quote-or-empty target)
+                                       ?o (sharper--option-alist-to-string options))))
       (sharper--log "Clean command\n" command "\n")
       (sharper--run-async-shell command "*dotnet clean*"))))
 
@@ -522,9 +536,9 @@
          (directory (sharper--project-root target)))
     (unless target ;; it is possible to test without a target :shrug:
       (sharper--message "No TARGET provided, will run tests in default directory."))
-    (let ((command (format-spec sharper--publish-template
-                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
-                                                  ?o (sharper--option-alist-to-string options)))))
+    (let ((command (sharper--strformat sharper--publish-template
+                                       ?t (sharper--shell-quote-or-empty target)
+                                       ?o (sharper--option-alist-to-string options))))
       (setq sharper--last-publish (cons directory command))
       (sharper--run-last-publish))))
 
@@ -568,10 +582,10 @@
          (directory (sharper--project-root target)))
     (unless target ;; it is possible to build without a target :shrug:
       (sharper--message "No TARGET provided, will pack in default directory."))
-    (let ((command (format-spec sharper--pack-template
-                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
-                                                  ?o (sharper--option-alist-to-string options)
-                                                  ?m (sharper--shell-quote-or-empty msbuild-props)))))
+    (let ((command (sharper--strformat sharper--pack-template
+                                       ?t (sharper--shell-quote-or-empty target)
+                                       ?o (sharper--option-alist-to-string options)
+                                       ?m (sharper--shell-quote-or-empty msbuild-props))))
       (setq sharper--last-pack (cons directory command))
       (sharper--run-last-pack))))
 
@@ -614,12 +628,12 @@
          (directory (file-name-directory target)))
     (unless target ;; it is possible to run without a target :shrug:
       (sharper--message "No TARGET provided, will run in default directory."))
-    (let ((command (format-spec sharper--run-template
-                                (format-spec-make ?t (sharper--shell-quote-or-empty target)
-                                                  ?o (sharper--option-alist-to-string options)
-                                                  ?a (if app-args
-                                                         (concat "-- " app-args)
-                                                       "")))))
+    (let ((command (sharper--strformat sharper--run-template
+                                       ?t (sharper--shell-quote-or-empty target)
+                                       ?o (sharper--option-alist-to-string options)
+                                       ?a (if app-args
+                                              (concat "-- " app-args)
+                                            ""))))
       (setq sharper--last-run (cons directory command))
       (sharper--run-last-run))))
 
@@ -659,8 +673,8 @@
   "Get and format the projects for the solution in PATH for `sharper--solution-management-mode'."
   (cl-labels ((convert-to-entry (project)
                                 (list project (vector project))))
-    (let ((command (format-spec sharper--sln-list-template
-                                (format-spec-make ?t (shell-quote-argument path)))))
+    (let ((command (sharper--strformat sharper--sln-list-template
+                                       ?t (shell-quote-argument path))))
       (sharper--log-command "List solution projects" command)
       (mapcar #'convert-to-entry
               (nthcdr 2 (split-string (shell-command-to-string command)
@@ -711,9 +725,9 @@
   "Add a project to the current solution."
   (interactive)
   (let ((default-directory (file-name-directory sharper--solution-path))
-        (command (format-spec sharper--sln-add-template
-                              (format-spec-make ?t (shell-quote-argument sharper--solution-path)
-                                                ?p (shell-quote-argument (sharper--read--project))))))
+        (command (sharper--strformat sharper--sln-add-template
+                                     ?t (shell-quote-argument sharper--solution-path)
+                                     ?p (shell-quote-argument (sharper--read--project)))))
     (sharper--log-command "Add to solution" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--solution-management-refresh)))
@@ -722,9 +736,9 @@
   "Remove the project at point from the solution."
   (interactive)
   (let ((default-directory (file-name-directory sharper--solution-path))
-        (command (format-spec sharper--sln-remove-template
-                              (format-spec-make ?t (shell-quote-argument sharper--solution-path)
-                                                ?p (shell-quote-argument (tabulated-list-get-id))))))
+        (command (sharper--strformat sharper--sln-remove-template
+                                     ?t (shell-quote-argument sharper--solution-path)
+                                     ?p (shell-quote-argument (tabulated-list-get-id)))))
     (sharper--log-command "Remove from solution" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--solution-management-refresh)))
@@ -733,8 +747,8 @@
   "List the packages of all projects in the solution."
   (interactive)
   (let ((default-directory (file-name-directory sharper--solution-path))
-        (command (format-spec sharper--package-list-template
-                              (format-spec-make ?t (shell-quote-argument sharper--solution-path)))))
+        (command (sharper--strformat sharper--package-list-template
+                                     ?t (shell-quote-argument sharper--solution-path))))
     (sharper--log-command "List solution packages" command)
     (sharper--run-async-shell command
                               (concat "*packages "
@@ -749,8 +763,8 @@
   ;; the concatenation still works as intended :thinking:
   (let ((sln-directory (file-name-directory sharper--solution-path))
         (project-relative-path (tabulated-list-get-id)))
-        (sharper--manage-project-references (concat sln-directory
-                                                    project-relative-path))))
+    (sharper--manage-project-references (concat sln-directory
+                                                project-relative-path))))
 
 (defun sharper--solution-management-open-proj-pack ()
   "Open `sharper--project-references-mode' for the project at point."
@@ -758,8 +772,8 @@
   ;; same path note as above applies... :shrug:
   (let ((sln-directory (file-name-directory sharper--solution-path))
         (project-relative-path (tabulated-list-get-id)))
-        (sharper--manage-project-packages (concat sln-directory
-                                                  project-relative-path))))
+    (sharper--manage-project-packages (concat sln-directory
+                                              project-relative-path))))
 
 ;;------------------dotnet project references-------------------------------------
 
@@ -780,11 +794,11 @@
                                 ". Press \"a\" to see available actions." )))))
 
 (defun sharper--format-project-references (path)
-   "Get and format the project reference for the proejct in PATH for `sharper--project-references-mode'."
+  "Get and format the project reference for the proejct in PATH for `sharper--project-references-mode'."
   (cl-labels ((convert-to-entry (reference)
                                 (list reference (vector reference))))
-    (let ((command (format-spec sharper--reference-list-template
-                                (format-spec-make ?t (shell-quote-argument path)))))
+    (let ((command (sharper--strformat sharper--reference-list-template
+                                       ?t (shell-quote-argument path))))
       (sharper--log-command "List project references" command)
       (mapcar #'convert-to-entry
               (nthcdr 2 (split-string
@@ -823,9 +837,9 @@
   "Add a project reference to the current project."
   (interactive)
   (let ((default-directory (file-name-directory sharper--project-path))
-        (command (format-spec sharper--reference-add-template
-                              (format-spec-make ?t (shell-quote-argument sharper--project-path)
-                                                ?p (shell-quote-argument (sharper--read--project))))))
+        (command (sharper--strformat sharper--reference-add-template
+                                     ?t (shell-quote-argument sharper--project-path)
+                                     ?p (shell-quote-argument (sharper--read--project)))))
     (sharper--log-command "Add project reference" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--project-references-refresh)))
@@ -834,9 +848,9 @@
   "Remove the project at point from the current project's references."
   (interactive)
   (let ((default-directory (file-name-directory sharper--project-path))
-        (command (format-spec sharper--reference-remove-template
-                              (format-spec-make ?t (shell-quote-argument sharper--project-path-path)
-                                                ?p (shell-quote-argument (tabulated-list-get-id))))))
+        (command (sharper--strformat sharper--reference-remove-template
+                                     ?t (shell-quote-argument sharper--project-path-path)
+                                     ?p (shell-quote-argument (tabulated-list-get-id)))))
     (sharper--log-command "Remove project reference" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--project-references-refresh)))
@@ -866,17 +880,17 @@
                                  (shell-quote-argument path))))
     (sharper--log-command "Restore project packages" restore-command)
     (shell-command-to-string restore-command))
-   (cl-labels ((extract-pack-name (line)
-                                  (when (string-match-p " >" line)
-                                      (cl-second (split-string line))))
-               (convert-to-entry (line)
+  (cl-labels ((extract-pack-name (line)
+                                 (when (string-match-p " >" line)
+                                   (cl-second (split-string line))))
+              (convert-to-entry (line)
                                 (list (extract-pack-name line) (vector line))))
-     (let ((command (format-spec sharper--package-list-template
-                                 (format-spec-make ?t (shell-quote-argument path)))))
-       (sharper--log-command "List project packages" command)
-       (mapcar #'convert-to-entry
-               (nthcdr 2 (split-string (shell-command-to-string command)
-                                       "\n" t))))))
+    (let ((command (sharper--strformat sharper--package-list-template
+                                       ?t (shell-quote-argument path))))
+      (sharper--log-command "List project packages" command)
+      (mapcar #'convert-to-entry
+              (nthcdr 2 (split-string (shell-command-to-string command)
+                                      "\n" t))))))
 
 (define-derived-mode sharper--project-packages-mode tabulated-list-mode "Sharper project packages" "Major mode to manage project packages."
   (setq tabulated-list-format [("Packages info" 300 nil)])
@@ -920,9 +934,9 @@ check, but it makes things easier so, meh."
   "Remove the package at point from the current project."
   (interactive)
   (let ((default-directory (file-name-directory sharper--project-path))
-        (command (format-spec sharper--package-remove-template
-                              (format-spec-make ?t (shell-quote-argument sharper--project-path)
-                                                ?k (shell-quote-argument (tabulated-list-get-id))))))
+        (command (sharper--strformat sharper--package-remove-template
+                                     ?t (shell-quote-argument sharper--project-path)
+                                     ?k (shell-quote-argument (tabulated-list-get-id)))))
     (sharper--log-command "Remove project package" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--project-packages-refresh)))
@@ -956,10 +970,10 @@ check, but it makes things easier so, meh."
   (transient-set)
   (let* ((package-name (sharper--get-argument "<PackageName>=" transient-params))
          (options (sharper--only-options transient-params))
-         (command (format-spec sharper--package-add-template
-                               (format-spec-make ?t (shell-quote-argument sharper--project-path)
-                                                 ?k (shell-quote-argument package-name)
-                                                 ?o (sharper--option-alist-to-string options)))))
+         (command (sharper--strformat sharper--package-add-template
+                                      ?t (shell-quote-argument sharper--project-path)
+                                      ?k (shell-quote-argument package-name)
+                                      ?o (sharper--option-alist-to-string options))))
     (sharper--log-command "Add project package" command)
     (sharper--message (string-trim (shell-command-to-string command)))
     (sharper--project-packages-refresh)))
