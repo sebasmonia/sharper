@@ -96,6 +96,7 @@
 (defvar sharper--reference-add-template "dotnet add %t reference %p" "Template for \"dotnet add reference\" invocations.")
 (defvar sharper--reference-remove-template "dotnet remove %t reference %p" "Template for \"dotnet remove reference\" invocations.")
 (defvar sharper--package-list-template "dotnet list %t package" "Template for \"dotnet list package\" invocations.")
+(defvar sharper--package-list-transitive-template "dotnet list %t package --include-transitive" "Template for \"dotnet list package\" including transitive packages.")
 (defvar sharper--package-add-template "dotnet add %t package %k %o" "Template for \"dotnet add package\" invocations.")
 (defvar sharper--package-remove-template "dotnet remove %t package %k" "Template for \"dotnet remove package\" invocations.")
 
@@ -381,10 +382,35 @@ Just a facility to make these invocations shorter."
             (sharper--read-msbuild-properties)))
 
 (defun sharper--run-async-shell (command buffer-name)
-  "Call `async-shell-command' to run COMMAND using a buffer BUFFER-NAME."
+  "Call `async-shell-command' to run COMMAND using a buffer BUFFER-NAME.
+Returns a reference to the output buffer."
   (let ((le-buffer (generate-new-buffer (generate-new-buffer-name
                                          buffer-name))))
-    (async-shell-command command le-buffer le-buffer)))
+    (async-shell-command command le-buffer le-buffer)
+    le-buffer))
+
+(defun sharper--shell-command-to-log (command)
+  "Call `shell-command-to-string' to run COMMAND.  Log the output."
+  (sharper--message "Running shell command...")
+  (let ((cmd-output (shell-command-to-string command)))
+    (sharper--log "[Command output]" "\n" cmd-output "\n"))
+  ;; clear the echo area after we are done
+  (message nil))
+
+(defun sharper--list-solproj-all-packages ()
+  "List ALL packages of the solution/project open in the calling buffer.
+The solution or project is determined via the buffer local variables.
+\"ALL\" packages refers to including the transitive references."
+  (interactive)
+  (let* ((slnproj (or sharper--solution-path sharper--project-path))
+         (default-directory (file-name-directory slnproj))
+         (command (sharper--strformat sharper--package-list-transitive-template
+                                      ?t (shell-quote-argument slnproj))))
+    (sharper--log-command "List solution/project packages (incl. transitive)" command)
+    (sharper--run-async-shell command
+                              (concat "*packages (full) "
+                                      (file-name-nondirectory slnproj)
+                                      "*"))))
 
 ;;------------------dotnet build--------------------------------------------------
 
@@ -700,7 +726,7 @@ Just a facility to make these invocations shorter."
                                 ". Press \"a\" to see available actions." )))))
 
 (define-derived-mode sharper--solution-management-mode tabulated-list-mode "Sharper solution management" "Major mode to manage a dotnet solution."
-  (setq tabulated-list-format [("Project" 200 nil)])
+  (setq tabulated-list-format [("Projects" 200 nil)])
   (setq tabulated-list-padding 1)
   (tabulated-list-init-header))
 
@@ -712,6 +738,7 @@ Just a facility to make these invocations shorter."
    ("e" "manage project references" sharper--solution-management-open-proj-ref)
    ("p" "manage project packages" sharper--solution-management-open-proj-pack)
    ("l" "list packages for all projects in the solution" sharper--solution-management-packages)
+   ("L" "list packages for all projects in the solution (including transitive packages)" sharper--list-solproj-all-packages)
    ("q" "quit" transient-quit-all)])
 
 (define-key sharper--solution-management-mode-map (kbd "a") 'sharper-transient-solution)
@@ -882,7 +909,7 @@ Just a facility to make these invocations shorter."
   (let ((restore-command (concat "dotnet restore "
                                  (shell-quote-argument path))))
     (sharper--log-command "Restore project packages" restore-command)
-    (shell-command-to-string restore-command))
+    (sharper--shell-command-to-log restore-command))
   (cl-labels ((extract-pack-name (line)
                                  (when (string-match-p " >" line)
                                    (cl-second (split-string line))))
@@ -911,6 +938,7 @@ Just a facility to make these invocations shorter."
    ;; so the time being, we can leave this disabled
    ;; ("v" "change package at point to specific (or latest version)" sharper--project-reference-remove)
    ("s" "switch to references view" sharper--project-package-switch-to-references)
+   ("L" "Show a listing including transitive packages" sharper--list-solproj-all-packages)
    ("q" "quit" transient-quit-all)])
 
 (define-key sharper--project-packages-mode-map (kbd "a") 'sharper-transient-project-packages)
@@ -939,7 +967,7 @@ Just a facility to make these invocations shorter."
                                          ?t (shell-quote-argument sharper--project-path)
                                          ?k (shell-quote-argument package-name))))
         (sharper--log-command "Remove project package" command)
-        (sharper--message (string-trim (shell-command-to-string command)))
+        (sharper--shell-command-to-log command)
         (sharper--project-packages-refresh)))))
 
 (define-infix-argument sharper--option-add-package-name ()
@@ -977,7 +1005,7 @@ Just a facility to make these invocations shorter."
                                       ?k (shell-quote-argument package-name)
                                       ?o (sharper--option-alist-to-string options))))
     (sharper--log-command "Add project package" command)
-    (sharper--message (string-trim (shell-command-to-string command)))
+    (sharper--shell-command-to-log command)
     (sharper--project-packages-refresh)))
 
 (provide 'sharper)
