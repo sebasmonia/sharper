@@ -31,31 +31,11 @@
 
 ;;; Code:
 
-;;------------------Package infrastructure----------------------------------------
-
 (require 'transient)
 (require 'cl-lib)
 (require 'cl-extra) ;; for cl-some
+(require 'json)
 (require 'project)
-
-(defun sharper--message (text)
-  "Show a TEXT as a message and log it, if 'panda-less-messages' log only."
-  (message "Sharper: %s" text)
-  (sharper--log "Package message:\n" text "\n"))
-
-(defun sharper--log-command (title command)
-  "Log a COMMAND, using TITLE as header, using the predefined format."
-  (sharper--log "[command]" title "\n" command "\n"))
-
-(defun sharper--log (&rest to-log)
-  "Append TO-LOG to the log buffer.  Intended for internal use only."
-  (let ((log-buffer (get-buffer-create "*sharper-log*"))
-        (text (cl-reduce (lambda (accum elem) (concat accum " " (prin1-to-string elem t))) to-log)))
-    (with-current-buffer log-buffer
-      (goto-char (point-max))
-      (insert text)
-      (insert "\n"))))
-
 
 ;;------------------Customization options-----------------------------------------
 
@@ -66,6 +46,10 @@
 (defcustom sharper-project-extensions '("csproj" "fsproj")
   "Valid extensions for project files."
   :type 'list)
+
+(defcustom sharper-RIDs-URL "https://raw.githubusercontent.com/dotnet/runtime/master/src/libraries/pkg/Microsoft.NETCore.Platforms/runtime.json"
+  "URL to fetch the list of Runtime Identifiers for dotnet. See https://docs.microsoft.com/en-us/dotnet/core/rid-catalog for more info."
+  :type 'string)
 
 ;; (defcustom panda-open-status-after-build 'ask
 ;;   "Open the build status for the corresponding branch after requesting a build.
@@ -109,10 +93,62 @@
 (defvar sharper--last-pack nil "A cons cell (directory . last command used to create a NuGet package).")
 (defvar sharper--last-run nil "A cons cell (directory . last command used for \"dotnet run\").")
 
+(defvar sharper--cached-RIDs nil "The list of Runtime IDs used for completion")
 
 (defvar-local sharper--solution-path nil "Used in `sharper--solution-management-mode' to store the current solution.")
-
 (defvar-local sharper--project-path nil "Used in `sharper--project-references-mode' and `sharper--project-packages-mode' to store the current project.")
+
+;;------------------Package infrastructure----------------------------------------
+
+(defun sharper--message (text)
+  "Show a TEXT as a message and log it, if 'panda-less-messages' log only."
+  (message "Sharper: %s" text)
+  (sharper--log "Package message:\n" text "\n"))
+
+(defun sharper--log-command (title command)
+  "Log a COMMAND, using TITLE as header, using the predefined format."
+  (sharper--log "[command]" title "\n" command "\n"))
+
+(defun sharper--log (&rest to-log)
+  "Append TO-LOG to the log buffer.  Intended for internal use only."
+  (let ((log-buffer (get-buffer-create "*sharper-log*"))
+        (text (cl-reduce (lambda (accum elem) (concat accum " " (prin1-to-string elem t))) to-log)))
+    (with-current-buffer log-buffer
+      (goto-char (point-max))
+      (insert text)
+      (insert "\n"))))
+
+(defun sharper--json-request (url &optional params method data)
+  "Retrieve JSON result of calling URL with PARAMS and DATA using METHOD (default GET).  Return parsed objects."
+  ;; Based on the Panda function for API calls to Bamboo
+  (unless data
+    (setq data ""))
+  (let ((url-request-extra-headers
+         `(("Accept" . "application/json")
+           ("Content-Type" . "application/json")))
+        (url-request-method (or method "GET"))
+        (url-request-data (encode-coding-string data 'utf-8))
+        (json-false :false))
+    (when params
+      (setq url (concat url "&" params)))
+    (sharper--log "Requesting JSON data: " url-request-method "to "  url " with data " url-request-data)
+    (sharper--message "Web request...")
+    ;; 10 seconds timeout and silenced URL module included
+    (with-current-buffer (url-retrieve-synchronously url t nil 10)
+      (set-buffer-multibyte t)
+      (goto-char url-http-end-of-headers)
+      (let ((parsed-json 'error))
+        (ignore-errors
+          ;; if there's a problem parsing the JSON
+          ;; parsed-json ==> 'error
+          (if (fboundp 'json-parse-buffer)
+                 ;; delete everything that isn't JSON (headers)
+              (setq parsed-json (json-parse-buffer
+                                 :object-type 'alist))
+            ;; Legacy :)
+            (setq parsed-json (json-read))))
+        (kill-buffer) ;; don't litter with API buffers
+        parsed-json))))
 
 ;;------------------Main transient------------------------------------------------
 
@@ -422,6 +458,27 @@ The solution or project is determined via the buffer local variables.
                                       (file-name-nondirectory slnproj)
                                       "*"))))
 
+(defun sharper--get-RIDs ()
+  "Obtains the list of Runtimes IDs and returns it.
+After the first call, the list is cached in `sharper--cached-RIDs'."
+  (unless sharper--cached-RIDs
+    (let ((json-data (sharper--json-request sharper-RIDs-URL)))
+      (setq sharper--cached-RIDs
+            (mapcar #'car
+                    (alist-get 'runtimes json-data)))))
+  sharper--cached-RIDs)
+
+(define-infix-argument sharper--option-target-runtime ()
+  :description "Target runtime"
+  :class 'transient-option
+  :shortarg "-r"
+  :argument "--runtime="
+  :reader (lambda (_prompt _initial-input _history)
+            (completing-read "Runtime: "
+                             (sharper--get-RIDs)
+                             nil
+                             'confirm)))
+
 ;;------------------dotnet build--------------------------------------------------
 
 (defun sharper--build (&optional transient-params)
@@ -456,7 +513,7 @@ The solution or project is determined via the buffer local variables.
    ("-o" "Output" "--output=")
    ("-ni" "No incremental" "--no-incremental")
    ("-nd" "No dependencies" "--no-dependencies")
-   ("-r" "Target runtime" "--runtime=")
+   (sharper--option-target-runtime)
    (sharper--option-msbuild-params)
    ("-s" "NuGet Package source URI" "--source")
    ("-es" "Version suffix" "--version-suffix=")]
@@ -516,7 +573,7 @@ The solution or project is determined via the buffer local variables.
    ("-O" "Data collector name" "--collect")
    ("-d" "Diagnostics file" "--diag=")
    ("-nr" "No restore" "--no-restore")
-   ("-r" "Target runtime" "--runtime=")
+   (sharper--option-target-runtime)
    ("-R" "Results directory" "--results-directory=")
    ("-s" "Settings" "--settings=")
    ("-es" "Version suffix" "--version-suffix=")
@@ -555,7 +612,7 @@ The solution or project is determined via the buffer local variables.
   ["Other Arguments"
    ("-w" "Framework" "--framework=")
    ("-o" "Output" "--output=")
-   ("-r" "Target runtime" "--runtime=")]
+   (sharper--option-target-runtime)]
   ["Actions"
    ("c" "clean" sharper--clean)
    ("q" "quit" transient-quit-all)])
@@ -591,7 +648,7 @@ The solution or project is determined via the buffer local variables.
   ["Other Arguments"
    ("-f" "Force" "--force")
    ("-w" "Framework" "--framework=")
-   ("-r" "Target runtime" "--runtime=")
+   (sharper--option-target-runtime)
    ("-o" "Output" "--output=")
    ;; There are somewhat odd rules governing these two
    ;; easier to include both self contained flags and
@@ -638,7 +695,7 @@ The solution or project is determined via the buffer local variables.
   ["Other Arguments"
    ("-f" "Force" "--force")
    ("-w" "Framework" "--framework=")
-   ("-r" "Target runtime" "--runtime=")
+   (sharper--option-target-runtime)
    ("-o" "Output" "--output=")
    (sharper--option-msbuild-params)
    ("-is" "Include source" "--include-source")
@@ -696,7 +753,7 @@ The solution or project is determined via the buffer local variables.
    ("-lp" "Launch profile" "--launch-profile=")
    ("-f" "Force" "--force")
    ("-w" "Framework" "--framework=")
-   ("-r" "Target runtime" "--runtime=")
+   (sharper--option-target-runtime)
    ("-o" "Output" "--output=")
    ("-nl" "No launch profile" "--no-launch-profile")
    ("-nr" "No restore" "--no-restore")
