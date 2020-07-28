@@ -114,26 +114,25 @@
 
 (defvar-local sharper--project-path nil "Used in `sharper--project-references-mode' and `sharper--project-packages-mode' to store the current project.")
 
-
 ;;------------------Main transient------------------------------------------------
 
 (define-transient-command sharper-main-transient ()
   "dotnet Menu"
   ["Build"
    ("B" "new build" sharper-transient-build)
-   ("b" "repeat last build" sharper--run-last-build)]
+   ("b" (lambda () (sharper--repeat-description sharper--last-build)) sharper--run-last-build)]
   ["Run test"
    ("T" "new test run" sharper-transient-test)
-   ("t" "repeat last test run" sharper--run-last-test)]
+   ("t" (lambda () (sharper--repeat-description sharper--last-test)) sharper--run-last-test)]
   ["Run application"
    ("R" "new application run" sharper-transient-run)
-   ("r" "repeat last application run" sharper--run-last-run)]
+   ("r" (lambda () (sharper--repeat-description sharper--last-run)) sharper--run-last-run)]
   ["Publish app"
    ("P" "new publish" sharper-transient-publish)
-   ("p" "repeat last publish" sharper--run-last-publish)]
+   ("p" (lambda () (sharper--repeat-description sharper--last-publish)) sharper--run-last-publish)]
   ["Generating a nuget package file"
    ("N" "new package" sharper-transient-pack)
-   ("n" "rebuild last package" sharper--run-last-pack)
+   ("n" (lambda () (sharper--repeat-description sharper--last-pack)) sharper--run-last-pack)
    ;;("wp" "wizard for package metadata" sharper-transient-???)
    ]
   ["Solution & project management"
@@ -147,7 +146,19 @@
 
 ;; TODO: commands I haven't used and could (should?) be implemented:
 ;; dotnet store
-;;
+;; ???
+
+(defun sharper--repeat-description (the-var)
+  "Format the command in THE-VAR for display in the main transient.
+THE-VAR is one of the sharper--last-* variables."
+  (if (not the-var)
+      (propertize "[Can't repeat last invocation]"
+                  'face
+                  font-lock-doc-face)
+    (concat "repeast last: "
+            (propertize (cdr the-var)
+                        'face
+                        font-lock-doc-face))))
 
 (defun sharper--run-last-build (&optional transient-params)
   "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-build'."
