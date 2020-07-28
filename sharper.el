@@ -152,7 +152,7 @@
   "Format the command in THE-VAR for display in the main transient.
 THE-VAR is one of the sharper--last-* variables."
   (if (not the-var)
-      (propertize "[Can't repeat last invocation]"
+      (propertize "[No previous invocation]"
                   'face
                   font-lock-doc-face)
     (concat "repeast last: "
@@ -177,7 +177,6 @@ THE-VAR is one of the sharper--last-* variables."
   (interactive
    (list (transient-args 'sharper-transient-test)))
   (transient-set)
-  (sharper--log "Test command\n" sharper--last-test "\n")
   (if sharper--last-test
       (let ((default-directory (car sharper--last-test))
             (command (cdr sharper--last-test)))
