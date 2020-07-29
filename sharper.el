@@ -142,7 +142,6 @@
           ;; if there's a problem parsing the JSON
           ;; parsed-json ==> 'error
           (if (fboundp 'json-parse-buffer)
-                 ;; delete everything that isn't JSON (headers)
               (setq parsed-json (json-parse-buffer
                                  :object-type 'alist))
             ;; Legacy :)
@@ -463,9 +462,10 @@ The solution or project is determined via the buffer local variables.
 After the first call, the list is cached in `sharper--cached-RIDs'."
   (unless sharper--cached-RIDs
     (let ((json-data (sharper--json-request sharper-RIDs-URL)))
-      (setq sharper--cached-RIDs
-            (mapcar #'car
-                    (alist-get 'runtimes json-data)))))
+      (unless (eq json-data 'error)
+        (setq sharper--cached-RIDs
+              (mapcar #'car
+                      (alist-get 'runtimes json-data))))))
   sharper--cached-RIDs)
 
 (define-infix-argument sharper--option-target-runtime ()
@@ -475,9 +475,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   :argument "--runtime="
   :reader (lambda (_prompt _initial-input _history)
             (completing-read "Runtime: "
-                             (sharper--get-RIDs)
-                             nil
-                             'confirm)))
+                             (sharper--get-RIDs))))
 
 ;;------------------dotnet build--------------------------------------------------
 
