@@ -23,7 +23,7 @@
 ;;       (require 'sharper)
 ;;       (global-set-key (kbd "C-c n") 'sharper-main-transient) ;; For "n" for "dot NET"
 ;;
-;; Some commands show lists of items.  In those cases, "a" shows the transient with the Actions
+;; Some commands show lists of items.  In those cases, "RET" shows the transient with the Actions
 ;; available.
 ;;
 ;; For a detailed user manual see:
@@ -51,7 +51,7 @@
   "URL to fetch the list of Runtime Identifiers for dotnet. See https://docs.microsoft.com/en-us/dotnet/core/rid-catalog for more info."
   :type 'string)
 
-(defcustom sharper--nuget-search-URL "https://azuresearch-usnc.nuget.org/query?q=%s&prerelease=true&semVerLevel=2.0.0"
+(defcustom sharper--nuget-search-URL "https://azuresearch-usnc.nuget.org/query?q=%s&prerelease=true&semVerLevel=2.0.0&take=250"
   "URL to run a NuGet search.  Must contain a %s to replace with the search string the user will input."
   :type 'string)
 
@@ -151,6 +151,7 @@
             ;; Legacy :)
             (setq parsed-json (json-read))))
         (kill-buffer) ;; don't litter with API buffers
+        (message nil) ;; clear echo area
         parsed-json))))
 
 ;;------------------Main transient------------------------------------------------
@@ -790,9 +791,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (setq sharper--solution-path solution-full-path)
       (sharper--solution-management-refresh)
       (pop-to-buffer buffer-name)
-      (sharper--message (concat "Listing projects in "
-                                solution-filename
-                                ". Press \"a\" to see available actions." )))))
+      (sharper--message (concat "Listing projects in " solution-filename)))))
 
 (define-derived-mode sharper--solution-management-mode tabulated-list-mode "Sharper solution management" "Major mode to manage a dotnet solution."
   (setq tabulated-list-format [("Projects" 200 nil)])
@@ -810,7 +809,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
    ("L" "list packages for all projects in the solution (including transitive packages)" sharper--list-solproj-all-packages)
    ("q" "quit" transient-quit-all)])
 
-(define-key sharper--solution-management-mode-map (kbd "a") 'sharper-transient-solution)
+(define-key sharper--solution-management-mode-map (kbd "RET") 'sharper-transient-solution)
 (define-key sharper--solution-management-mode-map (kbd "g") 'sharper--solution-management-refresh)
 
 (defun sharper--solution-management-refresh ()
@@ -889,8 +888,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (sharper--project-references-refresh)
       (pop-to-buffer buffer-name)
       (sharper--message (concat "Listing projects in "
-                                project-filename
-                                ". Press \"a\" to see available actions." )))))
+                                project-filename)))))
 
 (defun sharper--format-project-references (path)
   "Get and format the project reference for the proejct in PATH for `sharper--project-references-mode'."
@@ -917,7 +915,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
    ("s" "switch to packages view" sharper--project-reference-switch-to-packages)
    ("q" "quit" transient-quit-all)])
 
-(define-key sharper--project-references-mode-map (kbd "a") 'sharper-transient-project-references)
+(define-key sharper--project-references-mode-map (kbd "RET") 'sharper-transient-project-references)
 (define-key sharper--project-references-mode-map (kbd "g") 'sharper--project-references-refresh)
 
 (defun sharper--project-references-refresh ()
@@ -969,8 +967,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (sharper--project-packages-refresh)
       (pop-to-buffer buffer-name)
       (sharper--message (concat "Listing packages in "
-                                project-filename
-                                ". Press \"a\" to see available actions." )))))
+                                project-filename)))))
 
 (defun sharper--format-project-packages (path)
   "Get and format the project reference for the project in PATH for `sharper--project-references-mode'."
@@ -997,21 +994,27 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   (tabulated-list-init-header))
 
 (define-transient-command sharper-transient-project-packages ()
-  "Project references menu"
+  "Project packages menu"
   ["Actions"
+   ("n" "search NuGet package" sharper--project-package-nuget)
    ("a" "add package" sharper-transient-add-package)
    ("r" "remove package at point" sharper--project-package-remove)
-   ;; TODO: package updates
-   ;; Trying to add the package again is enough to get it bumped to latest version
-   ;; HOWEVER, picking up versions with completion depends on nuget search and other unfinished features.
-   ;; so the time being, we can leave this disabled
-   ;; ("v" "change package at point to specific (or latest version)" sharper--project-reference-remove)
    ("s" "switch to references view" sharper--project-package-switch-to-references)
    ("L" "Show a listing including transitive packages" sharper--list-solproj-all-packages)
    ("q" "quit" transient-quit-all)])
+;; TODO: package updates
+;; Trying to add the package again is enough to get it bumped to latest version
+;; HOWEVER, picking up versions with completion depends on nuget search and other unfinished features.
+;; so the time being, we can leave this disabled
+;; ("v" "change package at point to specific (or latest version)" sharper--project-reference-remove)
 
-(define-key sharper--project-packages-mode-map (kbd "a") 'sharper-transient-project-packages)
+(define-key sharper--project-packages-mode-map (kbd "RET") 'sharper-transient-project-packages)
 (define-key sharper--project-packages-mode-map (kbd "g") 'sharper--project-packages-refresh)
+
+(defun sharper--project-package-nuget ()
+  "Start a NuGet search to add a package to the current project. "
+  (interactive)
+  (sharper--nuget-search sharper--project-path))
 
 (defun sharper--project-package-switch-to-references ()
   "Switch from packages view to references view."
@@ -1076,6 +1079,75 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
     (sharper--log-command "Add project package" command)
     (sharper--shell-command-to-log command)
     (sharper--project-packages-refresh)))
+
+
+(defun sharper--nuget-search-request (term)
+  "Return the results of a search for TERM in NuGet.
+Format of the returned data is (PackageId . [PackageId Verified Tags Versions-List])"
+  (let* ((search-url (format sharper--nuget-search-URL (url-hexify-string term)))
+         (packages-found (sharper--json-request search-url)))
+    (setq meh packages-found)
+    (mapcar #'sharper--format-nuget-entry (alist-get 'data packages-found))))
+
+(defun sharper--format-nuget-entry (element)
+  "Format ELEMENT to be used in a tablist."
+  (let-alist element
+    (list .id
+          (vector .id
+                  (if (eq .verified :false)
+                      "No"
+                    "Yes")
+                  (number-to-string .totalDownloads)
+                  (mapconcat #'identity .tags " ")
+                  (replace-regexp-in-string "\n" " " .description)
+                  .version
+                  (nreverse (mapcar (lambda (v) (cdr (car v))) .versions))))))
+
+(define-derived-mode sharper--nuget-results-mode tabulated-list-mode "Sharper nuget search results" "Major mode to install NuGet packages based on search results."
+  (setq tabulated-list-format [("Package" 40 nil)
+                               ("Verified" 8 nil)
+                               ("Downloads" 9 nil)
+                               ("Tags" 30 nil)
+                               ("Description" 0 nil)])
+  (setq tabulated-list-padding 1)
+  (tabulated-list-init-header))
+
+(define-key sharper--nuget-results-mode-map (kbd "RET") 'sharper--nuget-search-install)
+
+(defun sharper--nuget-search (&optional project-path)
+  "Search and add NuGet packages to PROJECT-PATH.
+If it's not provided, it will be prompted"
+  (interactive)
+  (let* ((term (read-string "Search term(s): "))
+         (buffer-name (format "*NuGet search: %s* " term)))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (sharper--nuget-results-mode)
+      ;; if  nil, it will be prompted later
+      (setq sharper--project-path project-path) ;; buffer local
+      (setq tabulated-list-entries
+            (sharper--nuget-search-request term))
+      (tabulated-list-print)
+      (switch-to-buffer buffer-name))))
+
+(defun sharper--nuget-search-install ()
+  (interactive)
+  (let* ((package-data (tabulated-list-get-entry))
+         (name (elt package-data 0))
+         (last-ver (elt package-data 5))
+         (all-vers (elt package-data 6))
+         (version (completing-read "Version to install: "
+                                            all-vers
+                                            nil
+                                            t
+                                            last-ver))
+         ;; TODO: project-path should be prompted it nil
+         (command (sharper--strformat sharper--package-add-template
+                                      ?t (shell-quote-argument sharper--project-path)
+                                      ?k (shell-quote-argument name)
+                                      ?o (concat "--version " version))))
+    (sharper--log-command "Add project package" command)
+    (sharper--shell-command-to-log command)
+    (kill-buffer)))
 
 (provide 'sharper)
 ;;; sharper.el ends here
