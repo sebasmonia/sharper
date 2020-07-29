@@ -45,10 +45,14 @@
 
 (defcustom sharper-project-extensions '("csproj" "fsproj")
   "Valid extensions for project files."
-  :type 'list)
+  :type '(repeat string))
 
 (defcustom sharper-RIDs-URL "https://raw.githubusercontent.com/dotnet/runtime/master/src/libraries/pkg/Microsoft.NETCore.Platforms/runtime.json"
   "URL to fetch the list of Runtime Identifiers for dotnet. See https://docs.microsoft.com/en-us/dotnet/core/rid-catalog for more info."
+  :type 'string)
+
+(defcustom sharper--nuget-search-URL "https://azuresearch-usnc.nuget.org/query?q=%s&prerelease=true&semVerLevel=2.0.0"
+  "URL to run a NuGet search.  Must contain a %s to replace with the search string the user will input."
   :type 'string)
 
 ;; (defcustom panda-open-status-after-build 'ask
