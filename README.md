@@ -28,6 +28,8 @@ Then bind `shaper-main-transient` to a key of your preference:
 
 Follow the prompts on the menus as needed.
 Any list of items (tabulated-list) has a binding to RET (Enter) that opens a transient that operates on the item under point or allows adding more.
+All the commands executed are logged to the `*sharper-log*` buffer, you it's easy to debug issues (and report them too!). 
+The package has been tested on Linux and Windows, with ample use of quoting for shell arguments, still, something might have slipped under the radar... :)
 Some screenshots follow, so you know what to expect.
 
 ### Main menu

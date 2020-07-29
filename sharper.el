@@ -4,7 +4,7 @@
 ;;
 ;; Author: Sebastian Monia <smonia@outlook.com>
 ;; URL: https://github.com/sebasmonia/sharper
-;; Package-Requires: ((emacs "25.1") (transient "20200601"))
+;; Package-Requires: ((emacs "26.3") (transient "20200601"))
 ;; Version: 1.0
 ;; Keywords: maint tool
 
@@ -48,7 +48,7 @@
   :type '(repeat string))
 
 (defcustom sharper-RIDs-URL "https://raw.githubusercontent.com/dotnet/runtime/master/src/libraries/pkg/Microsoft.NETCore.Platforms/runtime.json"
-  "URL to fetch the list of Runtime Identifiers for dotnet. See https://docs.microsoft.com/en-us/dotnet/core/rid-catalog for more info."
+  "URL to fetch the list of Runtime Identifiers for dotnet.  See https://docs.microsoft.com/en-us/dotnet/core/rid-catalog for more info."
   :type 'string)
 
 (defcustom sharper--nuget-search-URL "https://azuresearch-usnc.nuget.org/query?q=%s&prerelease=true&semVerLevel=2.0.0&take=250"
@@ -97,7 +97,7 @@
 (defvar sharper--last-pack nil "A cons cell (directory . last command used to create a NuGet package).")
 (defvar sharper--last-run nil "A cons cell (directory . last command used for \"dotnet run\").")
 
-(defvar sharper--cached-RIDs nil "The list of Runtime IDs used for completion")
+(defvar sharper--cached-RIDs nil "The list of Runtime IDs used for completion.")
 
 (defvar-local sharper--solution-path nil "Used in `sharper--solution-management-mode' to store the current solution.")
 (defvar-local sharper--project-path nil "Used in `sharper--project-references-mode' and `sharper--project-packages-mode' to store the current project.")
@@ -463,7 +463,7 @@ The solution or project is determined via the buffer local variables.
                                       "*"))))
 
 (defun sharper--get-RIDs ()
-  "Obtains the list of Runtimes IDs and returns it.
+  "Obtain the list of Runtimes IDs, format and return it.
 After the first call, the list is cached in `sharper--cached-RIDs'."
   (unless sharper--cached-RIDs
     (let ((json-data (sharper--json-request sharper-RIDs-URL)))
@@ -1012,7 +1012,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
 (define-key sharper--project-packages-mode-map (kbd "g") 'sharper--project-packages-refresh)
 
 (defun sharper--project-package-nuget ()
-  "Start a NuGet search to add a package to the current project. "
+  "Start a NuGet search to add a package to the current project."
   (interactive)
   (sharper--nuget-search sharper--project-path))
 
@@ -1129,6 +1129,7 @@ Format of the returned data is (PackageId . [PackageId Verified Tags Versions-Li
       (switch-to-buffer buffer-name))))
 
 (defun sharper--nuget-search-install ()
+  "Install the package at point in the project that started the search flow."
   (interactive)
   (let* ((package-data (tabulated-list-get-entry))
          (name (elt package-data 0))
