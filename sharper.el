@@ -1115,8 +1115,7 @@ Format of the returned data is (PackageId . [PackageId Verified Tags Versions-Li
 (define-key sharper--nuget-results-mode-map (kbd "RET") 'sharper--nuget-search-install)
 
 (defun sharper--nuget-search (&optional project-path)
-  "Search and add NuGet packages to PROJECT-PATH.
-If it's not provided, it will be prompted"
+  "Search and add NuGet packages to PROJECT-PATH."
   (interactive)
   (let* ((term (read-string "Search term(s): "))
          (buffer-name (format "*NuGet search: %s* " term)))
@@ -1140,14 +1139,25 @@ If it's not provided, it will be prompted"
                                             nil
                                             t
                                             last-ver))
-         ;; TODO: project-path should be prompted it nil
+         (y-n-prompt (format "Add package %s to project %s?"
+                             name
+                             sharper--project-path))
          (command (sharper--strformat sharper--package-add-template
                                       ?t (shell-quote-argument sharper--project-path)
                                       ?k (shell-quote-argument name)
-                                      ?o (concat "--version " version))))
-    (sharper--log-command "Add project package" command)
-    (sharper--shell-command-to-log command)
-    (kill-buffer)))
+                                      ?o (concat "--version " version)))
+         ;; Wanna keep around this buffer's name to close
+         ;; it after adding the package
+         (nuget-buffer-name (buffer-name)))
+    (when (yes-or-no-p y-n-prompt)
+      ;; TODO: project-path should be prompted it nil
+      (sharper--log-command "Add project package" command)
+      (sharper--shell-command-to-log command)
+      ;; this will either open or refresh the existing buffer for project packages
+      (sharper--manage-project-packages sharper--project-path)
+      ;; since there's no way to start another search, after adding a package
+      ;; this buffer's purpose in life has been fulfilled. Farewell, dear buffer!
+      (kill-buffer nuget-buffer-name))))
 
 (provide 'sharper)
 ;;; sharper.el ends here
