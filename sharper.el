@@ -55,14 +55,6 @@
   "URL to run a NuGet search.  Must contain a %s to replace with the search string the user will input."
   :type 'string)
 
-;; (defcustom panda-open-status-after-build 'ask
-;;   "Open the build status for the corresponding branch after requesting a build.
-;; If yes, automatically open it.  No to never ask.  Set to 'ask (default) to be prompted each time."
-;;   :type '(choice (const :tag "No" nil)
-;;                  (const :tag "Yes" t)
-;;                  (const :tag "Ask" ask)))
-
-
 ;; Legend for the templates below:
 ;; %t = TARGET
 ;; %o = OPTIONS
