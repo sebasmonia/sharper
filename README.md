@@ -15,13 +15,23 @@ This is a [Transient-based](https://github.com/magit/transient) menu for the [do
 
 ## Installation and configuration
 
-Place `shaper.el` in your load-path, and `(require 'shaper)`. Or, preferred, install from MELPA. 
 _NOTE: the package is not in MELPA yet :)_
 
-Then bind `shaper-main-transient` to a key of your preference:
+Place `sharper.el` somewhere in your load path, or `load` it manually. Then bind `shaper-main-transient` to a key of your preference:
 
 ```elisp
+(load "/path/to/sharper.el")
+(require 'shaper)
 (global-set-key (kbd "C-c n") 'sharper-main-transient) ;; Example "n" for "dot NET"
+```
+
+If are a `use-package` user, then:
+
+```elisp
+(use-package sharper :load-path "path/to/sharper_directory"
+  :demand t
+  :bind
+  ("C-c n" . sharper-main-transient))
 ```
 
 ## Usage
