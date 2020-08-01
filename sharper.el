@@ -258,9 +258,11 @@ THE-VAR is one of the sharper--last-* variables."
   "Run version info for SDKs, runtime, etc."
   (interactive)
   (message "Compiling \"dotnet\" information...")
-  (let ((dotnet-path (shell-command-to-string (if (string= system-type "windows-nt")
-                                                  "where dotnet"
-                                                "which dotnet")))
+  (let ((dotnet-path (file-chase-links
+                      (string-trim
+                       (shell-command-to-string (if (string= system-type "windows-nt")
+                                                    "where dotnet"
+                                                  "which dotnet")))))
         (dotnet-version (shell-command-to-string "dotnet --version"))
         (dotnet-sdks (shell-command-to-string "dotnet --list-sdks"))
         (dotnet-runtimes (shell-command-to-string "dotnet --list-runtimes"))
@@ -268,7 +270,8 @@ THE-VAR is one of the sharper--last-* variables."
     (with-current-buffer buf
       (erase-buffer)
       (insert "dotnet path: "
-              dotnet-path)
+              dotnet-path
+              "\n")
       (insert "dotnet version: "
               dotnet-version)
       (insert "\nInstalled SDKs:\n"
