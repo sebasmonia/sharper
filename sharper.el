@@ -346,9 +346,14 @@ Just a facility to make these invocations shorter."
 
 (defun sharper--project-root (&optional path)
   "Get the project root from optional PATH or `default-directory'."
-  (project-root (project-current nil
-                                 (or path
-                                     default-directory))))
+  ;; TODO: hello future self. This used to call `project-root', but it
+  ;; wasn't available in Emacs < 28. I tried to do something smart about
+  ;; this, but since it wasn't easy, it probably wasn't _that_ smart.
+  ;; Decided instead to take advantage of the internals of project.el,
+  ;; so if this breaks in the future, you know...fit it.
+  (cdr (project-current nil
+                        (or path
+                            default-directory))))
 
 (defun sharper--filename-proj-or-sln-p (filename)
   "Return non-nil if FILENAME is a project or solution."
