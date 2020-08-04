@@ -64,8 +64,10 @@
 ;; %a = RUN SETTINGS (dotnet test) or APPLICATION ARGUMENTS (dotnet run)
 ;; %p = PROJECT (when project != target)
 ;; %k = PACKAGE NAME
+;; %e = TEST NAME
 (defvar sharper--build-template "dotnet build %t %o %m" "Template for \"dotnet build\" invocations.")
 (defvar sharper--test-template "dotnet test %t %o %a" "Template for \"dotnet test\" invocations.")
+(defvar sharper--test-methodfunc-template "dotnet test --filter %e" "Template for \"dotnet test\" invocations to run the \"current test\".")
 (defvar sharper--clean-template "dotnet clean %t %o" "Template for \"dotnet clean\" invocations.")
 (defvar sharper--publish-template "dotnet publish %t %o" "Template for \"dotnet publish\" invocations.")
 (defvar sharper--pack-template "dotnet pack %t %o %m" "Template for \"dotnet pack\" invocations.")
@@ -74,6 +76,7 @@
 (defvar sharper--sln-add-template "dotnet sln %t add %p" "Template for \"dotnet sln add\" invocations.")
 (defvar sharper--sln-remove-template "dotnet sln %t remove %p" "Template for \"dotnet sln remove\" invocations.")
 (defvar sharper--reference-list-template "dotnet list %t reference" "Template for \"dotnet list reference\" invocations.")
+
 (defvar sharper--reference-add-template "dotnet add %t reference %p" "Template for \"dotnet add reference\" invocations.")
 (defvar sharper--reference-remove-template "dotnet remove %t reference %p" "Template for \"dotnet remove reference\" invocations.")
 (defvar sharper--package-list-template "dotnet list %t package" "Template for \"dotnet list package\" invocations.")
@@ -89,6 +92,7 @@
 (defvar sharper--last-publish nil "A cons cell (directory . last command used to run a publish).")
 (defvar sharper--last-pack nil "A cons cell (directory . last command used to create a NuGet package).")
 (defvar sharper--last-run nil "A cons cell (directory . last command used for \"dotnet run\").")
+(defvar sharper--current-test nil  "A cons cell (directory . test-name) used when running tests using the method/function at point as parameter.")
 
 (defvar sharper--cached-RIDs nil "The list of Runtime IDs used for completion.")
 
@@ -156,7 +160,8 @@
    ("b" (lambda () (sharper--repeat-description sharper--last-build)) sharper--run-last-build)]
   ["Run test"
    ("T" "new test run" sharper-transient-test)
-   ("t" (lambda () (sharper--repeat-description sharper--last-test)) sharper--run-last-test)]
+   ("t" (lambda () (sharper--repeat-description sharper--last-test)) sharper--run-last-test)
+   ("st" (lambda () (sharper--test-point-setup)) sharper--run-test-at-point)]
   ["Run application"
    ("R" "new application run" sharper-transient-run)
    ("r" (lambda () (sharper--repeat-description sharper--last-run)) sharper--run-last-run)]
@@ -193,6 +198,54 @@ THE-VAR is one of the sharper--last-* variables."
                         'face
                         font-lock-doc-face))))
 
+(defun sharper--test-point-setup ()
+  "Setup the state to run the test at point.
+Updates `sharper--current-test' using `sharper--current-method-function-name'
+and `sharper--nearest-project-dir', then returns the description to show in
+the main transient."
+  (let ((the-thing (sharper--current-method-function-name))
+        (proj-dir (sharper--nearest-project-dir)))
+    ;; update the variable, will have a value only if
+    ;; we could find the dir and a function name
+    (sharper--log "The thing:" (prin1-to-string the-thing))
+    (sharper--log "Proj dir:" (prin1-to-string proj-dir))
+    (setq sharper--current-test
+          (when (and the-thing proj-dir)
+            (cons proj-dir the-thing)))
+    (if sharper--current-test
+        (concat "test method: "
+                (propertize the-thing
+                            'face
+                            font-lock-type-face)
+                (propertize (concat " (project " proj-dir ")")
+                            'face
+                            font-lock-doc-face))
+      (propertize "[Can't identify test & project to run]"
+                  'face
+                  font-lock-doc-face))))
+
+(defun sharper--current-method-function-name ()
+  "Return the name of the current method/function.
+As last resort it uses the word at point.
+The current implementation is C# only, we need to make accomodations for F#."
+  ;; c-defun-name-and-limits is an undocumentd cc-mode function.
+  ;; This works, but, who knows?
+  (let ((c-name (ignore-errors
+                  (c-defun-name-and-limits nil))))
+    (if c-name
+        (car c-name)
+      ;; 'word is not valid when subword-mode is enabled
+      ;; using 'sexp makes it work in both cases
+      (thing-at-point 'sexp t))))
+
+(defun sharper--nearest-project-dir ()
+  "Return the first directory that has a project from the current path."
+  ;; TODO: I think this would be more useful if it returned the full project path.
+  (when (buffer-file-name)
+    (locate-dominating-file
+     (buffer-file-name)
+     #'sharper--directory-has-proj-p)))
+
 (defun sharper--run-last-build (&optional transient-params)
   "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-build'."
   (interactive
@@ -216,6 +269,20 @@ THE-VAR is one of the sharper--last-* variables."
         (sharper--log-command "Test" command)
         (compile command))
     (sharper-transient-test)))
+
+(defun sharper--run-test-at-point (&optional transient-params)
+  "Run \"dotnet test\", ignore TRANSIENT-PARAMS, setup call via `sharper--current-test'."
+  (interactive
+   (list (transient-args 'sharper-transient-test)))
+  (transient-set)
+  (if sharper--current-test
+      (let ((default-directory (car sharper--current-test))
+            (command (sharper--strformat sharper--test-methodfunc-template
+                                         ?e (eshell-quote-argument (cdr sharper--current-test)))))
+        (sharper--log-command "Testing method/function at point" command)
+        (compile command))
+    ;; go back to the main menu if sharper--current-test is not set
+    (sharper-main-transient)))
 
 (defun sharper--run-last-publish (&optional transient-params)
   "Run \"dotnet publish\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-publish'."
@@ -358,8 +425,16 @@ Just a facility to make these invocations shorter."
 
 (defun sharper--filename-proj-p (filename)
   "Return non-nil if FILENAME is a project."
+  (message filename)
   (let ((extension (file-name-extension filename)))
     (member extension sharper-project-extensions)))
+
+(defun sharper--directory-has-proj-p (directory)
+  "Return non-nil if DIRECTORY has a project."
+  ;; It is tempting to use a regex to filter the project names
+  ;; but for now let's rely on the existing function, for consistency
+  (let ((files (directory-files directory t)))
+    (cl-some #'sharper--filename-proj-p files)))
 
 (defun sharper--filename-sln-p (filename)
   "Return non-nil if FILENAME is a solution."
