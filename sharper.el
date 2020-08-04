@@ -225,8 +225,7 @@ THE-VAR is one of the sharper--last-* variables."
       (let ((default-directory (car sharper--last-publish))
             (command (cdr sharper--last-publish)))
         (sharper--log-command "Publish" command)
-        (sharper--run-async-shell command "*dotnet publish*")
-        (pop-to-buffer "*dotnet publish*"))
+        (pop-to-buffer (sharper--run-async-shell command "*dotnet publish*"))
     (sharper-transient-publish)))
 
 (defun sharper--run-last-pack (&optional transient-params)
@@ -250,8 +249,7 @@ THE-VAR is one of the sharper--last-* variables."
       (let ((default-directory (car sharper--last-run))
             (command (cdr sharper--last-run)))
         (sharper--log-command "Run" command)
-        (sharper--run-async-shell command "*dotnet run*")
-        (pop-to-buffer "*dotnet run*"))
+        (pop-to-buffer (sharper--run-async-shell command "*dotnet run*"))
     (sharper-transient-run)))
 
 (defun sharper--version-info ()
@@ -350,7 +348,7 @@ Just a facility to make these invocations shorter."
   ;; wasn't available in Emacs < 28. I tried to do something smart about
   ;; this, but since it wasn't easy, it probably wasn't _that_ smart.
   ;; Decided instead to take advantage of the internals of project.el,
-  ;; so if this breaks in the future, you know...fit it.
+  ;; so if this breaks in the future, you know...fix it.
   (cdr (project-current nil
                         (or path
                             default-directory))))
