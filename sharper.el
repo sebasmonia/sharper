@@ -35,6 +35,7 @@
 (require 'cl-lib)
 (require 'cl-extra) ;; for cl-some
 (require 'json)
+(require 'thingatpt)
 (require 'project)
 
 ;;------------------Customization options-----------------------------------------
@@ -225,7 +226,7 @@ THE-VAR is one of the sharper--last-* variables."
       (let ((default-directory (car sharper--last-publish))
             (command (cdr sharper--last-publish)))
         (sharper--log-command "Publish" command)
-        (pop-to-buffer (sharper--run-async-shell command "*dotnet publish*"))
+        (pop-to-buffer (sharper--run-async-shell command "*dotnet publish*")))
     (sharper-transient-publish)))
 
 (defun sharper--run-last-pack (&optional transient-params)
@@ -249,7 +250,7 @@ THE-VAR is one of the sharper--last-* variables."
       (let ((default-directory (car sharper--last-run))
             (command (cdr sharper--last-run)))
         (sharper--log-command "Run" command)
-        (pop-to-buffer (sharper--run-async-shell command "*dotnet run*"))
+        (pop-to-buffer (sharper--run-async-shell command "*dotnet run*")))
     (sharper-transient-run)))
 
 (defun sharper--version-info ()
