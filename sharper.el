@@ -207,8 +207,6 @@ the main transient."
         (proj-dir (sharper--nearest-project-dir)))
     ;; update the variable, will have a value only if
     ;; we could find the dir and a function name
-    (sharper--log "The thing:" (prin1-to-string the-thing))
-    (sharper--log "Proj dir:" (prin1-to-string proj-dir))
     (setq sharper--current-test
           (when (and the-thing proj-dir)
             (cons proj-dir the-thing)))
