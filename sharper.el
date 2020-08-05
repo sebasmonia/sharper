@@ -276,7 +276,7 @@ The current implementation is C# only, we need to make accomodations for F#."
   (if sharper--current-test
       (let ((default-directory (car sharper--current-test))
             (command (sharper--strformat sharper--test-methodfunc-template
-                                         ?e (eshell-quote-argument (cdr sharper--current-test)))))
+                                         ?e (shell-quote-argument (cdr sharper--current-test)))))
         (sharper--log-command "Testing method/function at point" command)
         (compile command))
     ;; go back to the main menu if sharper--current-test is not set
