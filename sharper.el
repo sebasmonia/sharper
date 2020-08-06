@@ -93,6 +93,7 @@
 (defvar sharper--last-pack nil "A cons cell (directory . last command used to create a NuGet package).")
 (defvar sharper--last-run nil "A cons cell (directory . last command used for \"dotnet run\").")
 (defvar sharper--current-test nil  "A cons cell (directory . test-name) used when running tests using the method/function at point as parameter.")
+(defvar sharper--current-build nil  "A string with the directory used when building the nearest project.")
 
 (defvar sharper--cached-RIDs nil "The list of Runtime IDs used for completion.")
 
@@ -157,7 +158,8 @@
   "dotnet Menu"
   ["Build"
    ("B" "new build" sharper-transient-build)
-   ("b" (lambda () (sharper--repeat-description sharper--last-build)) sharper--run-last-build)]
+   ("b" (lambda () (sharper--repeat-description sharper--last-build)) sharper--run-last-build)
+   ("sb" (lambda () (sharper--build-nearest-setup)) sharper--run-nearest-build)]
   ["Run test"
    ("T" "new test run" sharper-transient-test)
    ("t" (lambda () (sharper--repeat-description sharper--last-test)) sharper--run-last-test)
@@ -222,6 +224,23 @@ the main transient."
                   'face
                   font-lock-doc-face))))
 
+(defun sharper--build-nearest-setup ()
+  "Setup the state to build the nearest project.
+Updates `sharper--current-build' using `sharper--nearest-project-dir',
+then returns the description to show in the main transient."
+  (let ((proj-dir (sharper--nearest-project-dir)))
+    ;; update the variable, will have a value only if
+    ;; we could find the nearest project
+    (setq sharper--current-build proj-dir)
+    (if sharper--current-build
+        (concat "build nearest"
+                (propertize (concat " (project " proj-dir ")")
+                            'face
+                            font-lock-doc-face))
+      (propertize "[Can't identify project to build]"
+                  'face
+                  font-lock-doc-face))))
+
 (defun sharper--current-method-function-name ()
   "Return the name of the current method/function.
 As last resort it uses the word at point.
@@ -255,6 +274,22 @@ The current implementation is C# only, we need to make accomodations for F#."
         (sharper--log-command "Build" command)
         (compile command))
     (sharper-transient-build)))
+
+(defun sharper--run-nearest-build (&optional transient-params)
+  "Run \"dotnet build\", ignore TRANSIENT-PARAMS, setup call via `sharper--current-build'."
+  (interactive
+   (list (transient-args 'sharper-transient-build)))
+  (transient-set)
+  (if sharper--current-build
+      (let ((default-directory sharper--current-build)
+            (command (sharper--strformat sharper--build-template
+                                         ?t ""
+                                         ?o ""
+                                         ?m "")))
+        (sharper--log-command "Build nearest project" command)
+        (compile command))
+    ;; go back to the main menu if sharper--current-build is not set
+    (sharper-main-transient)))
 
 (defun sharper--run-last-test (&optional transient-params)
   "Run \"dotnet test\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-test'."
