@@ -258,10 +258,15 @@ The current implementation is C# only, we need to make accomodations for F#."
 (defun sharper--nearest-project-dir ()
   "Return the first directory that has a project from the current path."
   ;; TODO: I think this would be more useful if it returned the full project path.
-  (when (buffer-file-name)
-    (locate-dominating-file
-     (buffer-file-name)
-     #'sharper--directory-has-proj-p)))
+  ;; TODO: Modes other than dired where this would be logical???
+  (let ((start-from (or (buffer-file-name)
+                        (when (eq major-mode
+                                  'dired-mode)
+                          default-directory))))
+    (when start-from
+      (locate-dominating-file
+       start-from
+       #'sharper--directory-has-proj-p))))
 
 (defun sharper--run-last-build (&optional transient-params)
   "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-build'."
@@ -458,7 +463,6 @@ Just a facility to make these invocations shorter."
 
 (defun sharper--filename-proj-p (filename)
   "Return non-nil if FILENAME is a project."
-  (message filename)
   (let ((extension (file-name-extension filename)))
     (member extension sharper-project-extensions)))
 
