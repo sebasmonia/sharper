@@ -109,7 +109,11 @@
 
 (defun sharper--log-command (title command)
   "Log a COMMAND, using TITLE as header, using the predefined format."
-  (sharper--log "[command]" title "\n" command "\n"))
+  (sharper--log
+   (concat "[command] " title
+           "\n " command
+           "\n in directory: " default-directory
+           "\n")))
 
 (defun sharper--log (&rest to-log)
   "Append TO-LOG to the log buffer.  Intended for internal use only."
