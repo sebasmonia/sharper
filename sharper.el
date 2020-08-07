@@ -361,7 +361,7 @@ The current implementation is C# only, we need to make accomodations for F#."
 (defun sharper--version-info ()
   "Display version info for SDKs, runtimes, etc."
   (interactive)
-  (message "Compiling \"dotnet\" information...")
+  (sharper--message "Compiling \"dotnet\" information...")
   (let ((dotnet-path (file-chase-links
                       (string-trim
                        (shell-command-to-string (if (string= system-type "windows-nt")
@@ -375,7 +375,8 @@ The current implementation is C# only, we need to make accomodations for F#."
               dotnet-path
               "\n")
       (insert "\n\"dotnet --info\" output: "
-              dotnet-info))))
+              dotnet-info)
+      (pop-to-buffer buf))))
 
 ;;------------------Argument parsing----------------------------------------------
 
