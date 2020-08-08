@@ -475,8 +475,11 @@ Just a facility to make these invocations shorter."
   "Return non-nil if DIRECTORY has a project."
   ;; It is tempting to use a regex to filter the project names
   ;; but for now let's rely on the existing function, for consistency
-  (let ((files (directory-files directory t)))
-    (cl-some #'sharper--filename-proj-p files)))
+  (when (file-directory-p directory)
+    ;; Strangely enough, in Windows directory-files ignores a path
+    ;; that is a file, but under Linux it fails. Adding a guard...
+    (let ((files (directory-files directory t)))
+      (cl-some #'sharper--filename-proj-p files))))
 
 (defun sharper--filename-sln-p (filename)
   "Return non-nil if FILENAME is a solution."
