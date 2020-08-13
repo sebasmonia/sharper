@@ -50,6 +50,15 @@ Some screenshots follow, so you know what to expect.
 After running a build for the first time, we can re-run it with the same parameters without going back to the Build menu. This applies to other common
 commands (test, publish, etc).
 
+There are two convenience commands for buils and tests:
+
+-`sb` stands for single build, and it will `dotnet build` the nearest project in the directory tree. For example if you 
+are editing a source file and want to build only the project you are currently working on rather the whole solution.
+
+-`st` or single test, that will run `dotnet test` filtering to the current method's name. This is useful if you are modifying a test and would like to 
+run only that method instead of your whole test suite. It uses the same logic as `sb` to find the project. The method name is detected using csharp-mode,
+and as a fallback the word at point instead.
+
 ### Build menu
 
 ![Build menu](/screenshots/buildmenu.png)
