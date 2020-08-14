@@ -1057,7 +1057,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   (interactive)
   (let ((default-directory (file-name-directory sharper--project-path))
         (command (sharper--strformat sharper--reference-remove-template
-                                     ?t (shell-quote-argument sharper--project-path-path)
+                                     ?t (shell-quote-argument sharper--project-path)
                                      ?p (shell-quote-argument (tabulated-list-get-id)))))
     (sharper--log-command "Remove project reference" command)
     (sharper--message (string-trim (shell-command-to-string command)))
