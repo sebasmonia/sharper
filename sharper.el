@@ -374,7 +374,7 @@ The current implementation is C# only, we need to make accomodations for F#."
       (insert "dotnet path: "
               dotnet-path
               "\n")
-      (insert "\n\"dotnet --info\" output: "
+      (insert "\ndotnet --info output:\n\n"
               dotnet-info)
       (pop-to-buffer buf))))
 
