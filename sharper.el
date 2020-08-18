@@ -366,11 +366,7 @@ The current implementation is C# only, we need to make accomodations for F#."
   "Display version info for SDKs, runtimes, etc."
   (interactive)
   (sharper--message "Compiling \"dotnet\" information...")
-  (let ((dotnet-path (file-chase-links
-                      (string-trim
-                       (shell-command-to-string (if (string= system-type "windows-nt")
-                                                    "where dotnet"
-                                                  "which dotnet")))))
+  (let ((dotnet-path (file-chase-links (executable-find "dotnet")))
         (dotnet-info (shell-command-to-string "dotnet --info"))
         (buf (get-buffer-create "*dotnet info*")))
     (with-current-buffer buf
