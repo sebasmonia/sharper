@@ -250,14 +250,18 @@ then returns the description to show in the main transient."
 As last resort it uses the word at point.
 The current implementation is C# only, we need to make accomodations for F#."
   ;; c-defun-name-and-limits is an undocumentd cc-mode function.
-  ;; This works, but, who knows?
+  ;; It works, but, who knows?
+  ;; In case if fails, we resort to the word at point, however
+  ;; 'word is not valid when subword-mode is enabled, using
+  ;; instead 'sexp makes it work in both cases
   (let ((c-name (ignore-errors
-                  (c-defun-name-and-limits nil))))
+                  (c-defun-name-and-limits nil)))
+        (fallback (thing-at-point 'sexp t)))
     (if c-name
-        (car c-name)
-      ;; 'word is not valid when subword-mode is enabled
-      ;; using 'sexp makes it work in both cases
-      (thing-at-point 'sexp t))))
+        (car c-name) ;; nothing else to do!
+      (if (> (length fallback) 49) ;; make sure the fallback is not too long
+          (concat (substring fallback 0 45) "(...)")
+        fallback))))
 
 (defun sharper--nearest-project-dir ()
   "Return the first directory that has a project from the current path."
