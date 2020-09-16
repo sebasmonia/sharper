@@ -4,7 +4,7 @@
 ;;
 ;; Author: Sebastian Monia <smonia@outlook.com>
 ;; URL: https://github.com/sebasmonia/sharper
-;; Package-Requires: ((emacs "26.3") (transient "20200601"))
+;; Package-Requires: ((emacs "27.1") (transient "20200601"))
 ;; Version: 1.0
 ;; Keywords: maint tool
 
@@ -14,7 +14,7 @@
 
 ;;; Commentary:
 
-;; This package aims to be a complete package for dotnet tasks that aren't part
+;; This aims to be a complete package for dotnet tasks that aren't part
 ;; of the languages but needed for any project: Solution management, nuget, etc.
 ;;
 ;; Steps to setup:
@@ -91,7 +91,7 @@
 (defvar sharper--last-test nil "A cons cell (directory . last command used to run tests).")
 (defvar sharper--last-publish nil "A cons cell (directory . last command used to run a publish).")
 (defvar sharper--last-pack nil "A cons cell (directory . last command used to create a NuGet package).")
-(defvar sharper--last-run nil "A cons cell (directory . last command used for \"dotnet run\").")
+(defvar sharper--last-run nil "A three item list (directory last . command used for \"dotnet run\" . project name).")
 (defvar sharper--current-test nil  "A cons cell (directory . test-name) used when running tests using the method/function at point as parameter.")
 (defvar sharper--current-build nil  "A string with the directory used when building the nearest project.")
 
@@ -170,7 +170,8 @@
    ("st" (lambda () (sharper--test-point-setup)) sharper--run-test-at-point)]
   ["Run application"
    ("R" "new application run" sharper-transient-run)
-   ("r" (lambda () (sharper--repeat-description sharper--last-run)) sharper--run-last-run)]
+   ;; As an exception, last run as a different structure than the other commands
+   ("r" (lambda () (sharper--repeat-description-run sharper--last-run)) sharper--run-last-run)]
   ["Publish app"
    ("P" "new publish" sharper-transient-publish)
    ("p" (lambda () (sharper--repeat-description sharper--last-publish)) sharper--run-last-publish)]
@@ -194,13 +195,25 @@
 
 (defun sharper--repeat-description (the-var)
   "Format the command in THE-VAR for display in the main transient.
-THE-VAR is one of the sharper--last-* variables."
+THE-VAR is one of the sharper--last-* variables, except `sharper--last-run'."
   (if (not the-var)
       (propertize "[No previous invocation]"
                   'face
                   font-lock-doc-face)
     (concat "repeast last: "
             (propertize (cdr the-var)
+                        'face
+                        font-lock-doc-face))))
+
+(defun sharper--repeat-description-run (the-var)
+  "Format the command in THE-VAR for display in the main transient.
+THE-VAR is `sharper--last-run' but the plan is for all of them to change format."
+  (if (not the-var)
+      (propertize "[No previous invocation]"
+                  'face
+                  font-lock-doc-face)
+    (concat "repeast last: "
+            (propertize (cl-second the-var)
                         'face
                         font-lock-doc-face))))
 
@@ -360,10 +373,10 @@ The current implementation is C# only, we need to make accomodations for F#."
    (list (transient-args 'sharper-transient-run)))
   (transient-set)
   (if sharper--last-run
-      (let ((default-directory (car sharper--last-run))
-            (command (cdr sharper--last-run)))
+      (cl-destructuring-bind (default-directory command proj-name) sharper--last-run
         (sharper--log-command "Run" command)
-        (pop-to-buffer (sharper--run-async-shell command "*dotnet run*")))
+        (pop-to-buffer (sharper--run-async-shell command
+                                                 (format "*dotnet run - %s*" proj-name))))
     (sharper-transient-run)))
 
 (defun sharper--version-info ()
@@ -835,8 +848,13 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
          (app-args (sharper--get-argument "<ApplicationArguments>=" transient-params))
          ;; For run we want this to execute in the same directory
          ;; that the project is, where the .settings file is
-         (directory (file-name-directory target)))
-    (unless target ;; it is possible to run without a target :shrug:
+         (directory (file-name-directory (or target "")))
+         ;; Default value, overriden if there's a target project
+         (proj-name (file-name-directory default-directory)))
+    (if target
+        ;; when there is a target, extract the project name
+        (setq proj-name (file-name-sans-extension (file-name-nondirectory target)))
+      ;; it is possible to run without a target :shrug:
       (sharper--message "No TARGET provided, will run in default directory."))
     (let ((command (sharper--strformat sharper--run-template
                                        ?t (sharper--shell-quote-or-empty target)
@@ -844,7 +862,9 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                                        ?a (if app-args
                                               (concat "-- " app-args)
                                             ""))))
-      (setq sharper--last-run (cons directory command))
+      (setq sharper--last-run (list directory
+                                    command
+                                    proj-name))
       (sharper--run-last-run))))
 
 (define-infix-argument sharper--option-run-application-arguments ()
