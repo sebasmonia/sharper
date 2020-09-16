@@ -862,7 +862,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                                        ?a (if app-args
                                               (concat "-- " app-args)
                                             ""))))
-      (setq sharper--last-run (list directory
+      (setq sharper--last-run (list (or directory default-directory)
                                     command
                                     proj-name))
       (sharper--run-last-run))))
