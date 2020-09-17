@@ -1022,7 +1022,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                                 project-filename)))))
 
 (defun sharper--format-project-references (path)
-  "Get and format the project reference for the proejct in PATH for `sharper--project-references-mode'."
+  "Get and format the project reference for the project in PATH for `sharper--project-references-mode'."
   (cl-labels ((convert-to-entry (reference)
                                 (list reference (vector reference))))
     (let ((command (sharper--strformat sharper--reference-list-template
