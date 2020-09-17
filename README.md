@@ -88,6 +88,6 @@ When selecting a target for a command, there's completion for projects or soluti
 
 ## Beta status
 
-This package is in beta status, and active development. I consider it stable, but breaking changes _could_ happen based on feedback and more extensive daily usage.
+This package is in beta status, and active development. However I consider it stable and will avoid breaking changes as much as possible.
 
 
