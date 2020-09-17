@@ -1,7 +1,7 @@
 # sharper
 dotnet CLI wrapper, using Transient
 
-This is a [Transient-based](https://github.com/magit/transient) menu for the [dotnet CLI](https://docs.microsoft.com/en-us/dotnet/core/tools/). It aims to cover the most common scenarios, but I expect eventually all of the `dotnet` commans will be implemented.
+This is a [Transient-based](https://github.com/magit/transient) menu for the [dotnet CLI](https://docs.microsoft.com/en-us/dotnet/core/tools/). It aims to cover the most common scenarios, but I expect eventually all of the `dotnet` commands will be implemented.
 
 ## Table of contents
 
@@ -50,7 +50,7 @@ Some screenshots follow, so you know what to expect.
 After running a build for the first time, we can re-run it with the same parameters without going back to the Build menu. This applies to other common
 commands (test, publish, etc).
 
-There are two convenience commands for buils and tests:
+There are two convenience commands for builds and tests:
 
 -`sb` stands for single build, and it will `dotnet build` the nearest project in the directory tree. For example if you 
 are editing a source file and want to build only the project you are currently working on rather the whole solution.
