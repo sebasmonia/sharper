@@ -10,7 +10,7 @@
 
 ;; This file is not part of GNU Emacs.
 
-;;; License: MIT
+;;; SPDX-License-Identifier: MIT
 
 ;;; Commentary:
 
@@ -37,6 +37,7 @@
 (require 'json)
 (require 'thingatpt)
 (require 'project)
+(require 'url-http)
 
 ;;------------------Customization options-----------------------------------------
 
@@ -268,7 +269,8 @@ The current implementation is C# only, we need to make accomodations for F#."
   ;; 'word is not valid when subword-mode is enabled, using
   ;; instead 'sexp makes it work in both cases
   (let ((c-name (ignore-errors
-                  (c-defun-name-and-limits nil)))
+                  (when (fboundp 'c-defun-name-and-limits)
+                    (c-defun-name-and-limits nil))))
         (fallback (thing-at-point 'sexp t)))
     (if c-name
         (car c-name) ;; nothing else to do!
@@ -1217,7 +1219,6 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
 Format of the returned data is (PackageId . [PackageId Verified Tags Versions-List])"
   (let* ((search-url (format sharper--nuget-search-URL (url-hexify-string term)))
          (packages-found (sharper--json-request search-url)))
-    (setq meh packages-found)
     (mapcar #'sharper--format-nuget-entry (alist-get 'data packages-found))))
 
 (defun sharper--format-nuget-entry (element)
