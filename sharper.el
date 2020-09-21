@@ -53,7 +53,7 @@
   "URL to fetch the list of Runtime Identifiers for dotnet.  See https://docs.microsoft.com/en-us/dotnet/core/rid-catalog for more info."
   :type 'string)
 
-(defcustom sharper--nuget-search-URL "https://azuresearch-usnc.nuget.org/query?q=%s&prerelease=true&semVerLevel=2.0.0&take=250"
+(defcustom sharper-nuget-search-URL "https://azuresearch-usnc.nuget.org/query?q=%s&prerelease=true&semVerLevel=2.0.0&take=250"
   "URL to run a NuGet search.  Must contain a %s to replace with the search string the user will input."
   :type 'string)
 
@@ -1217,7 +1217,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
 (defun sharper--nuget-search-request (term)
   "Return the results of a search for TERM in NuGet.
 Format of the returned data is (PackageId . [PackageId Verified Tags Versions-List])"
-  (let* ((search-url (format sharper--nuget-search-URL (url-hexify-string term)))
+  (let* ((search-url (format sharper-nuget-search-URL (url-hexify-string term)))
          (packages-found (sharper--json-request search-url)))
     (mapcar #'sharper--format-nuget-entry (alist-get 'data packages-found))))
 
