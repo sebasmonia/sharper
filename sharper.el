@@ -4,7 +4,7 @@
 ;;
 ;; Author: Sebastian Monia <smonia@outlook.com>
 ;; URL: https://github.com/sebasmonia/sharper
-;; Package-Requires: ((emacs "27.1") (transient "20200601"))
+;; Package-Requires: ((emacs "27.1") (transient "0.2.0"))
 ;; Version: 1.0
 ;; Keywords: maint tool
 
@@ -291,7 +291,7 @@ The current implementation is C# only, we need to make accomodations for F#."
        start-from
        #'sharper--directory-has-proj-p))))
 
-(defun sharper--run-last-build (&optional transient-params)
+(defun sharper--run-last-build (&optional _transient-params)
   "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-build'."
   (interactive
    (list (transient-args 'sharper-transient-build)))
@@ -303,7 +303,7 @@ The current implementation is C# only, we need to make accomodations for F#."
         (compile command))
     (sharper-transient-build)))
 
-(defun sharper--run-nearest-build (&optional transient-params)
+(defun sharper--run-nearest-build (&optional _transient-params)
   "Run \"dotnet build\", ignore TRANSIENT-PARAMS, setup call via `sharper--current-build'."
   (interactive
    (list (transient-args 'sharper-transient-build)))
@@ -319,7 +319,7 @@ The current implementation is C# only, we need to make accomodations for F#."
     ;; go back to the main menu if sharper--current-build is not set
     (sharper-main-transient)))
 
-(defun sharper--run-last-test (&optional transient-params)
+(defun sharper--run-last-test (&optional _transient-params)
   "Run \"dotnet test\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-test'."
   (interactive
    (list (transient-args 'sharper-transient-test)))
@@ -331,7 +331,7 @@ The current implementation is C# only, we need to make accomodations for F#."
         (compile command))
     (sharper-transient-test)))
 
-(defun sharper--run-test-at-point (&optional transient-params)
+(defun sharper--run-test-at-point (&optional _transient-params)
   "Run \"dotnet test\", ignore TRANSIENT-PARAMS, setup call via `sharper--current-test'."
   (interactive
    (list (transient-args 'sharper-transient-test)))
@@ -345,7 +345,7 @@ The current implementation is C# only, we need to make accomodations for F#."
     ;; go back to the main menu if sharper--current-test is not set
     (sharper-main-transient)))
 
-(defun sharper--run-last-publish (&optional transient-params)
+(defun sharper--run-last-publish (&optional _transient-params)
   "Run \"dotnet publish\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-publish'."
   (interactive
    (list (transient-args 'sharper-transient-publish)))
@@ -357,7 +357,7 @@ The current implementation is C# only, we need to make accomodations for F#."
         (pop-to-buffer (sharper--run-async-shell command "*dotnet publish*")))
     (sharper-transient-publish)))
 
-(defun sharper--run-last-pack (&optional transient-params)
+(defun sharper--run-last-pack (&optional _transient-params)
   "Run \"dotnet build\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-pack'."
   (interactive
    (list (transient-args 'sharper-transient-pack)))
@@ -369,7 +369,7 @@ The current implementation is C# only, we need to make accomodations for F#."
         (compile command))
     (sharper-transient-pack)))
 
-(defun sharper--run-last-run (&optional transient-params)
+(defun sharper--run-last-run (&optional _transient-params)
   "Run \"dotnet run\", ignore TRANSIENT-PARAMS, repeat last call via `sharper--last-run'."
   (interactive
    (list (transient-args 'sharper-transient-run)))
@@ -669,7 +669,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                                        ?t (sharper--shell-quote-or-empty target)
                                        ?o (sharper--option-alist-to-string options)
                                        ?a (if run-settings
-                                              (concat "-- " runtime-settings)
+                                              (concat "-- " run-settings)
                                             ""))))
       (setq sharper--last-test (cons directory command))
       (sharper--run-last-test))))
@@ -1024,7 +1024,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                                 project-filename)))))
 
 (defun sharper--format-project-references (path)
-  "Get and format the project reference for the proejct in PATH for `sharper--project-references-mode'."
+  "Get and format the project reference for the project in PATH for `sharper--project-references-mode'."
   (cl-labels ((convert-to-entry (reference)
                                 (list reference (vector reference))))
     (let ((command (sharper--strformat sharper--reference-list-template
