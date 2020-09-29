@@ -926,6 +926,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (pop-to-buffer buffer-name)
       (sharper--message (concat "Listing projects in " solution-filename)))))
 
+(defvar sharper--solution-management-mode-map (make-sparse-keymap) "Keymap for `sharper--solution-management-mode'.")
 (define-derived-mode sharper--solution-management-mode tabulated-list-mode "Sharper solution management" "Major mode to manage a dotnet solution."
   (setq tabulated-list-format [("Projects" 200 nil)])
   (setq tabulated-list-padding 1)
@@ -1035,6 +1036,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                          (shell-command-to-string command)
                          "\n" t))))))
 
+(defvar sharper--project-references-mode-map (make-sparse-keymap) "Keymap for `sharper--project-references-mode'.")
 (define-derived-mode sharper--project-references-mode tabulated-list-mode "Sharper project references" "Major mode to manage project references."
   (setq tabulated-list-format [("Reference" 200 nil)])
   (setq tabulated-list-padding 1)
@@ -1121,6 +1123,8 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
               (nthcdr 2 (split-string (shell-command-to-string command)
                                       "\n" t))))))
 
+
+(defvar sharper--project-packages-mode-map (make-sparse-keymap) "Keymap for `sharper--project-packages-mode'.")
 (define-derived-mode sharper--project-packages-mode tabulated-list-mode "Sharper project packages" "Major mode to manage project packages."
   (setq tabulated-list-format [("Packages info" 300 nil)])
   (setq tabulated-list-padding 1)
@@ -1235,6 +1239,7 @@ Format of the returned data is (PackageId . [PackageId Verified Tags Versions-Li
                   .version
                   (nreverse (mapcar (lambda (v) (cdr (car v))) .versions))))))
 
+(defvar sharper--nuget-results-mode-map (make-sparse-keymap) "Keymap for `sharper--nuget-results-mode'.")
 (define-derived-mode sharper--nuget-results-mode tabulated-list-mode "Sharper nuget search results" "Major mode to install NuGet packages based on search results."
   (setq tabulated-list-format [("Package" 40 nil)
                                ("Verified" 8 nil)
