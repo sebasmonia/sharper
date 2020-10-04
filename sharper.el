@@ -39,6 +39,10 @@
 (require 'project)
 (require 'url-http)
 
+;; This var is defined in url-http, added here to silence compiler warnings,
+;; see https://github.com/melpa/melpa/pull/7141 for more details
+(defvar url-http-end-of-headers)
+
 ;;------------------Customization options-----------------------------------------
 
 (defgroup sharper nil
@@ -926,7 +930,12 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (pop-to-buffer buffer-name)
       (sharper--message (concat "Listing projects in " solution-filename)))))
 
-(defvar sharper--solution-management-mode-map (make-sparse-keymap) "Keymap for `sharper--solution-management-mode'.")
+(defvar sharper--solution-management-mode-map
+  (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "RET") 'sharper-transient-solution)
+    (define-key km (kbd "g") 'sharper--solution-management-refresh))
+  "Keymap for `sharper--solution-management-mode'.")
+
 (define-derived-mode sharper--solution-management-mode tabulated-list-mode "Sharper solution management" "Major mode to manage a dotnet solution."
   (setq tabulated-list-format [("Projects" 200 nil)])
   (setq tabulated-list-padding 1)
@@ -943,8 +952,6 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
    ("L" "list packages for all projects in the solution (including transitive packages)" sharper--list-solproj-all-packages)
    ("q" "quit" transient-quit-all)])
 
-(define-key sharper--solution-management-mode-map (kbd "RET") 'sharper-transient-solution)
-(define-key sharper--solution-management-mode-map (kbd "g") 'sharper--solution-management-refresh)
 
 (defun sharper--solution-management-refresh ()
   "Update the tablist view in `sharper--solution-management-mode'."
@@ -1036,7 +1043,12 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                          (shell-command-to-string command)
                          "\n" t))))))
 
-(defvar sharper--project-references-mode-map (make-sparse-keymap) "Keymap for `sharper--project-references-mode'.")
+(defvar sharper--project-references-mode-map
+  (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "RET") 'sharper-transient-project-references)
+    (define-key km (kbd "g") 'sharper--project-references-refresh))
+    "Keymap for `sharper--project-references-mode'.")
+
 (define-derived-mode sharper--project-references-mode tabulated-list-mode "Sharper project references" "Major mode to manage project references."
   (setq tabulated-list-format [("Reference" 200 nil)])
   (setq tabulated-list-padding 1)
@@ -1049,9 +1061,6 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
    ("r" "remove reference at point" sharper--project-reference-remove)
    ("s" "switch to packages view" sharper--project-reference-switch-to-packages)
    ("q" "quit" transient-quit-all)])
-
-(define-key sharper--project-references-mode-map (kbd "RET") 'sharper-transient-project-references)
-(define-key sharper--project-references-mode-map (kbd "g") 'sharper--project-references-refresh)
 
 (defun sharper--project-references-refresh ()
   "Update the tablist view in `sharper--project-references-mode'."
@@ -1123,8 +1132,12 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
               (nthcdr 2 (split-string (shell-command-to-string command)
                                       "\n" t))))))
 
+(defvar sharper--project-packages-mode-map
+  (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "RET") 'sharper-transient-project-packages)
+    (define-key km (kbd "g") 'sharper--project-packages-refresh))
+  "Keymap for `sharper--project-packages-mode'.")
 
-(defvar sharper--project-packages-mode-map (make-sparse-keymap) "Keymap for `sharper--project-packages-mode'.")
 (define-derived-mode sharper--project-packages-mode tabulated-list-mode "Sharper project packages" "Major mode to manage project packages."
   (setq tabulated-list-format [("Packages info" 300 nil)])
   (setq tabulated-list-padding 1)
@@ -1144,9 +1157,6 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
 ;; HOWEVER, picking up versions with completion depends on nuget search and other unfinished features.
 ;; so the time being, we can leave this disabled
 ;; ("v" "change package at point to specific (or latest version)" sharper--project-reference-remove)
-
-(define-key sharper--project-packages-mode-map (kbd "RET") 'sharper-transient-project-packages)
-(define-key sharper--project-packages-mode-map (kbd "g") 'sharper--project-packages-refresh)
 
 (defun sharper--project-package-nuget ()
   "Start a NuGet search to add a package to the current project."
@@ -1239,7 +1249,11 @@ Format of the returned data is (PackageId . [PackageId Verified Tags Versions-Li
                   .version
                   (nreverse (mapcar (lambda (v) (cdr (car v))) .versions))))))
 
-(defvar sharper--nuget-results-mode-map (make-sparse-keymap) "Keymap for `sharper--nuget-results-mode'.")
+(defvar sharper--nuget-results-mode-map
+  (let ((km (make-sparse-keymap)))
+    (define-key km (kbd "RET") 'sharper--nuget-search-install))
+  "Keymap for `sharper--nuget-results-mode'.")
+
 (define-derived-mode sharper--nuget-results-mode tabulated-list-mode "Sharper nuget search results" "Major mode to install NuGet packages based on search results."
   (setq tabulated-list-format [("Package" 40 nil)
                                ("Verified" 8 nil)
@@ -1248,8 +1262,6 @@ Format of the returned data is (PackageId . [PackageId Verified Tags Versions-Li
                                ("Description" 0 nil)])
   (setq tabulated-list-padding 1)
   (tabulated-list-init-header))
-
-(define-key sharper--nuget-results-mode-map (kbd "RET") 'sharper--nuget-search-install)
 
 (defun sharper--nuget-search (&optional project-path)
   "Search and add NuGet packages to PROJECT-PATH."
