@@ -15,9 +15,7 @@ This is a [Transient-based](https://github.com/magit/transient) menu for the [do
 
 ## Installation and configuration
 
-_NOTE: the package is not in MELPA yet :)_
-
-Place `sharper.el` somewhere in your load path, or `load` it manually. Then bind `shaper-main-transient` to a key of your preference:
+Place `sharper.el` somewhere in your load path, or (preferred) install from MELPA. Then bind `shaper-main-transient` to a key of your preference:
 
 ```elisp
 (load "/path/to/sharper.el")
@@ -28,7 +26,7 @@ Place `sharper.el` somewhere in your load path, or `load` it manually. Then bind
 If are a `use-package` user, then:
 
 ```elisp
-(use-package sharper :load-path "path/to/sharper_directory"
+(use-package sharper
   :demand t
   :bind
   ("C-c n" . sharper-main-transient))
@@ -37,7 +35,7 @@ If are a `use-package` user, then:
 ## Usage
 
 Follow the prompts on the menus as needed.  
-Any list of items (tabulated-list) has a binding to RET (Enter) that opens a transient that operates on the item under point or allows adding more.  
+Any list of items (tabulated-list) has a binding to RET (Enter) that opens a transient to operate on the item under point or to add more elements.  
 All the commands executed are logged to the `*sharper-log*` buffer, so it's easy to debug issues (and report them too!).  
 The package has been tested on Linux and Windows, with ample use of quoting for shell arguments, still, something might have slipped under the radar... :)  
   
