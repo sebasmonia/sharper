@@ -61,6 +61,10 @@
   "URL to run a NuGet search.  Must contain a %s to replace with the search string the user will input."
   :type 'string)
 
+(defcustom sharper-run-only-one nil
+  "When calling \"dotnet run\", don't allow more than a single process per project."
+  :type 'boolean)
+
 ;; Legend for the templates below:
 ;; %t = TARGET
 ;; %o = OPTIONS
@@ -382,7 +386,9 @@ The current implementation is C# only, we need to make accomodations for F#."
       (cl-destructuring-bind (default-directory command proj-name) sharper--last-run
         (sharper--log-command "Run" command)
         (pop-to-buffer (sharper--run-async-shell command
-                                                 (format "*dotnet run - %s*" proj-name))))
+                                                 (format "*dotnet run - %s*" proj-name)
+                                                 (when sharper-run-only-one
+                                                   'confirm-kill-process))))
     (sharper-transient-run)))
 
 (defun sharper--version-info ()
@@ -561,11 +567,19 @@ Just a facility to make these invocations shorter."
   :reader (lambda (_prompt _initial-input _history)
             (sharper--read-msbuild-properties)))
 
-(defun sharper--run-async-shell (command buffer-name)
+(defun sharper--run-async-shell (command buffer-name &optional buffer-reuse-behaviour)
   "Call `async-shell-command' to run COMMAND using a buffer BUFFER-NAME.
-Returns a reference to the output buffer."
-  (let ((le-buffer (generate-new-buffer (generate-new-buffer-name
-                                         buffer-name))))
+Returns a reference to the output buffer.
+The optional parameter BUFFER-REUSE-BEHAVIOUR allows for let-binding
+`async-shell-command-buffer'.  When not specified, a new buffer is created on
+each call."
+  (let ((le-buffer (get-buffer-create
+                    ;; unless the caller assumes control via the optional parameter, we
+                    ;; will create a unique buffer name for them - the default.
+                    (if buffer-reuse-behaviour
+                        buffer-name
+                      (generate-new-buffer-name buffer-name))))
+        (async-shell-command-buffer (or buffer-reuse-behaviour 'confirm-new-buffer)))
     (async-shell-command command le-buffer le-buffer)
     le-buffer))
 
