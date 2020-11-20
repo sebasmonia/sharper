@@ -947,7 +947,8 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
 (defvar sharper--solution-management-mode-map
   (let ((km (make-sparse-keymap)))
     (define-key km (kbd "RET") 'sharper-transient-solution)
-    (define-key km (kbd "g") 'sharper--solution-management-refresh))
+    (define-key km (kbd "g") 'sharper--solution-management-refresh)
+    km)
   "Keymap for `sharper--solution-management-mode'.")
 
 (define-derived-mode sharper--solution-management-mode tabulated-list-mode "Sharper solution management" "Major mode to manage a dotnet solution."
@@ -1060,7 +1061,8 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
 (defvar sharper--project-references-mode-map
   (let ((km (make-sparse-keymap)))
     (define-key km (kbd "RET") 'sharper-transient-project-references)
-    (define-key km (kbd "g") 'sharper--project-references-refresh))
+    (define-key km (kbd "g") 'sharper--project-references-refresh)
+    km)
     "Keymap for `sharper--project-references-mode'.")
 
 (define-derived-mode sharper--project-references-mode tabulated-list-mode "Sharper project references" "Major mode to manage project references."
@@ -1149,7 +1151,8 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
 (defvar sharper--project-packages-mode-map
   (let ((km (make-sparse-keymap)))
     (define-key km (kbd "RET") 'sharper-transient-project-packages)
-    (define-key km (kbd "g") 'sharper--project-packages-refresh))
+    (define-key km (kbd "g") 'sharper--project-packages-refresh)
+    km)
   "Keymap for `sharper--project-packages-mode'.")
 
 (define-derived-mode sharper--project-packages-mode tabulated-list-mode "Sharper project packages" "Major mode to manage project packages."
@@ -1265,7 +1268,8 @@ Format of the returned data is (PackageId . [PackageId Verified Tags Versions-Li
 
 (defvar sharper--nuget-results-mode-map
   (let ((km (make-sparse-keymap)))
-    (define-key km (kbd "RET") 'sharper--nuget-search-install))
+    (define-key km (kbd "RET") 'sharper--nuget-search-install)
+    km)
   "Keymap for `sharper--nuget-results-mode'.")
 
 (define-derived-mode sharper--nuget-results-mode tabulated-list-mode "Sharper nuget search results" "Major mode to install NuGet packages based on search results."
