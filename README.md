@@ -1,7 +1,11 @@
+[![MELPA](https://melpa.org/packages/sharper-badge.svg)](https://melpa.org/#/sharper)
+
 # sharper
 dotnet CLI wrapper, using Transient
 
-This is a [Transient-based](https://github.com/magit/transient) menu for the [dotnet CLI](https://docs.microsoft.com/en-us/dotnet/core/tools/). It aims to cover the most common scenarios, but I expect eventually all of the `dotnet` commands will be implemented.
+This is a [Transient-based](https://github.com/magit/transient) menu for the [dotnet CLI](https://docs.microsoft.com/en-us/dotnet/core/tools/). It aims to cover the most common scenarios, but I expect eventually all of the `dotnet` commands will be implemented.  
+  
+**You can buy me a [cup of ko-fi](https://ko-fi.com/A0A527CN7)! There's also a [PayPal option](https://www.paypal.me/sebasmonia).**
 
 ## Table of contents
 
@@ -9,7 +13,6 @@ This is a [Transient-based](https://github.com/magit/transient) menu for the [do
 
    * [Installation and configuration](#installation-and-configuration)
    * [Usage](#usage)
-   * [Beta status](#beta-status)
 
 <!--te-->
 
@@ -84,8 +87,5 @@ and see a complete (but static) listing of all the packages for all the projects
 
 When selecting a target for a command, there's completion for projects or solutions within the current `project.el` project. That usually means the current repository.
 
-## Beta status
-
-This package is in beta status, and active development. However I consider it stable and will avoid breaking changes as much as possible.
 
 
