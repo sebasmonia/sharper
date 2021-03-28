@@ -282,8 +282,13 @@ The current implementation is C# only, we need to make accomodations for F#."
         (fallback (thing-at-point 'sexp t)))
     (if c-name
         (car c-name) ;; nothing else to do!
-      (if (> (length fallback) 49) ;; make sure the fallback is not too long
-          (concat (substring fallback 0 45) "(...)")
+      (if (> (length fallback) 125) ;; make sure the fallback is not too long
+          ;; See issue #24. Before we would take only 50 chars and add "(...)" but
+          ;; that broke the --filter parameter. I only added this because one time I
+          ;; had a giant block of text under point and it made the transient look
+          ;; horrible. Using a 125 char limit is realistic, and not adding ellipsis
+          ;; will keep --filter working.
+          (substring fallback 0 125)
         fallback))))
 
 (defun sharper--nearest-project-dir ()
