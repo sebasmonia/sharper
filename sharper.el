@@ -76,11 +76,13 @@
 ;; %e = TEST NAME
 (defvar sharper--build-template "dotnet build %t %o %m" "Template for \"dotnet build\" invocations.")
 (defvar sharper--test-template "dotnet test %t %o %a" "Template for \"dotnet test\" invocations.")
+(defvar sharper--watch-test-template "dotnet watch test %t %o %a" "Template for \"dotnet watch test\" invocations.")
 (defvar sharper--test-methodfunc-template "dotnet test --filter %e" "Template for \"dotnet test\" invocations to run the \"current test\".")
 (defvar sharper--clean-template "dotnet clean %t %o" "Template for \"dotnet clean\" invocations.")
 (defvar sharper--publish-template "dotnet publish %t %o" "Template for \"dotnet publish\" invocations.")
 (defvar sharper--pack-template "dotnet pack %t %o %m" "Template for \"dotnet pack\" invocations.")
 (defvar sharper--run-template "dotnet run --project %t %o %a" "Template for \"dotnet run\" invocations.")
+(defvar sharper--watch-run-template "dotnet watch run --project %t %o %a" "Template for \"dotnet watch run\" invocations.")
 (defvar sharper--sln-list-template "dotnet sln %t list" "Template for \"dotnet sln list\" invocations.")
 (defvar sharper--sln-add-template "dotnet sln %t add %p" "Template for \"dotnet sln add\" invocations.")
 (defvar sharper--sln-remove-template "dotnet sln %t remove %p" "Template for \"dotnet sln remove\" invocations.")
@@ -351,7 +353,18 @@ The current implementation is C# only, we need to make accomodations for F#."
       (let ((default-directory (car sharper--last-test))
             (command (cdr sharper--last-test)))
         (sharper--log-command "Test" command)
-        (compile command))
+        ;; Issue #27: if the command is "dotnet watch test" then run it in an async
+        ;; shell instead of `compilation-mode'.
+        (if (string-prefix-p "dotnet watch test" command)
+            ;; Run with "watch" as async shell
+            (pop-to-buffer (sharper--run-async-shell command
+                                                     ;; No project name available...
+                                                     (format "*dotnet test - %s*" default-directory)
+                                                     'confirm-kill-process))
+          ;; run using compilation-mode
+          (compile command)))
+    ;; I ask forgiveness for my sin of nesting "(if" to unreadable levels. This is the else branch
+    ;; of line 352
     (sharper-transient-test)))
 
 (defun sharper--run-test-at-point (&optional _transient-params)
@@ -695,8 +708,13 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
          (run-settings (sharper--get-argument "<RunSettings>=" transient-params))
          ;; We want *compilation* to happen at the root directory
          ;; of the selected project/solution
-         (directory (sharper--project-root target)))
+         ;; update for issue #27: if the command is "dotnet watch test" then
+         ;; use the target's directory
+         (directory (if (string-prefix-p "dotnet watch test" sharper--test-template)
+                        (file-name-directory (or target ""))
+                        (sharper--project-root target))))
     (unless target ;; it is possible to test without a target :shrug:
+      ;; this has always been finicky a I guess #27 will make things worse
       (sharper--message "No TARGET provided, will run tests in default directory."))
     (let ((command (sharper--strformat sharper--test-template
                                        ?t (sharper--shell-quote-or-empty target)
@@ -706,6 +724,19 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                                             ""))))
       (setq sharper--last-test (cons directory command))
       (sharper--run-last-test))))
+
+(defun sharper--watch-test (&optional transient-params)
+  "Run \"dotnet watch test\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-test)))
+  (transient-set)
+  ;; Issue #27: add support for "dotnet watch". Rebind the command template and
+  ;; call the existing `sharper--test' function.
+  ;; HOWEVER, there's a bit of a hack in `sharper--run-last-test' to run
+  ;; the command using `sharper--run-async-shell' instead of `compilation-mode'
+  ;; since the watch version is not "run and done".
+  (let ((sharper--test-template sharper--watch-test-template))
+    (sharper--test transient-params)))
 
 (define-infix-argument sharper--option-test-runsettings ()
   :description "<RunSettings>"
@@ -742,6 +773,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
    (sharper--option-test-runsettings)]
   ["Actions"
    ("t" "test" sharper--test)
+   ("w" "watch test" sharper--watch-test)
    ("q" "quit" transient-quit-all)])
 
 ;;------------------dotnet clean--------------------------------------------------
@@ -902,6 +934,17 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                                     proj-name))
       (sharper--run-last-run))))
 
+(defun sharper--watch-run (&optional transient-params)
+  "Run \"dotnet watch run\" using TRANSIENT-PARAMS as arguments & options."
+  (interactive
+   (list (transient-args 'sharper-transient-run)))
+  (transient-set)
+  ;; Issue #27: add support for "dotnet watch". Rebind the command template and
+  ;; call the existing `sharper--run' function, everything else stays the same.
+  (let ((sharper--run-template sharper--watch-run-template))
+    (sharper--run transient-params)))
+
+
 (define-infix-argument sharper--option-run-application-arguments ()
   :description "Application arguments"
   :class 'transient-option
@@ -930,6 +973,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
    ("-nd" "No dependencies" "--no-dependencies")]
   ["Actions"
    ("r" "run" sharper--run)
+   ("w" "watch run" sharper--watch-run)
    ("q" "quit" transient-quit-all)])
 
 ;;------------------dotnet solution management------------------------------------
