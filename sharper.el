@@ -179,7 +179,7 @@ Return the buffer."
 
 ;;------------------Main transient------------------------------------------------
 
-(define-transient-command sharper-main-transient ()
+(transient-define-prefix sharper-main-transient ()
   "dotnet Menu"
   ["Build"
    ("B" "new build" sharper-transient-build)
@@ -571,7 +571,7 @@ Just a facility to make these invocations shorter."
      (split-string user-input)
      " ")))
 
-(define-infix-argument sharper--option-target-projsln ()
+(transient-define-argument sharper--option-target-projsln ()
   :description "<PROJECT>|<SOLUTION>"
   :class 'transient-option
   :shortarg "T"
@@ -579,7 +579,7 @@ Just a facility to make these invocations shorter."
   :reader (lambda (_prompt _initial-input _history)
             (sharper--read-solution-or-project)))
 
-(define-infix-argument sharper--option-target-proj ()
+(transient-define-argument sharper--option-target-proj ()
   :description "<PROJECT>"
   :class 'transient-option
   :shortarg "T"
@@ -587,7 +587,7 @@ Just a facility to make these invocations shorter."
   :reader (lambda (_prompt _initial-input _history)
             (sharper--read--project)))
 
-(define-infix-argument sharper--option-msbuild-params ()
+(transient-define-argument sharper--option-msbuild-params ()
   :description "<MSBuildProperties>"
   :class 'transient-option
   :shortarg "-p"
@@ -645,7 +645,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
                       (alist-get 'runtimes json-data))))))
   sharper--cached-RIDs)
 
-(define-infix-argument sharper--option-target-runtime ()
+(transient-define-argument sharper--option-target-runtime ()
   :description "Target runtime"
   :class 'transient-option
   :shortarg "-r"
@@ -676,7 +676,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (setq sharper--last-build (cons directory command))
       (sharper--run-last-build))))
 
-(define-transient-command sharper-transient-build ()
+(transient-define-prefix sharper-transient-build ()
   "dotnet build menu"
   :value '("--configuration=Debug" "--verbosity=minimal")
   ["Common Arguments"
@@ -738,7 +738,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   (let ((sharper--test-template sharper--watch-test-template))
     (sharper--test transient-params)))
 
-(define-infix-argument sharper--option-test-runsettings ()
+(transient-define-argument sharper--option-test-runsettings ()
   :description "<RunSettings>"
   :class 'transient-option
   :shortarg "rs"
@@ -746,7 +746,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   :reader (lambda (_prompt _initial-input _history)
             (read-string "RunSettings arguments: ")))
 
-(define-transient-command sharper-transient-test ()
+(transient-define-prefix sharper-transient-test ()
   "dotnet test menu"
   :value '("--configuration=Debug" "--verbosity=minimal")
   ["Common Arguments"
@@ -796,7 +796,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (sharper--log "Clean command\n" command "\n")
       (pop-to-buffer (sharper--set-static-output-buffer (sharper--run-async-shell command "*dotnet clean*"))))))
 
-(define-transient-command sharper-transient-clean ()
+(transient-define-prefix sharper-transient-clean ()
   "dotnet clean menu"
   :value '("--configuration=Debug" "--verbosity=normal")
   ["Common Arguments"
@@ -832,7 +832,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (setq sharper--last-publish (cons directory command))
       (sharper--run-last-publish))))
 
-(define-transient-command sharper-transient-publish ()
+(transient-define-prefix sharper-transient-publish ()
   "dotnet publish menu"
   :value '("--configuration=Debug" "--verbosity=minimal")
   ["Common Arguments"
@@ -879,7 +879,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
       (setq sharper--last-pack (cons directory command))
       (sharper--run-last-pack))))
 
-(define-transient-command sharper-transient-pack ()
+(transient-define-prefix sharper-transient-pack ()
   "dotnet build menu"
   :value '("--configuration=Debug" "--verbosity=minimal")
   ["Common Arguments"
@@ -945,7 +945,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
     (sharper--run transient-params)))
 
 
-(define-infix-argument sharper--option-run-application-arguments ()
+(transient-define-argument sharper--option-run-application-arguments ()
   :description "Application arguments"
   :class 'transient-option
   :shortarg "aa"
@@ -953,7 +953,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   :reader (lambda (_prompt _initial-input _history)
             (read-string "Application arguments: ")))
 
-(define-transient-command sharper-transient-run ()
+(transient-define-prefix sharper-transient-run ()
   "dotnet run menu"
   :value '("--configuration=Debug" "--verbosity=minimal")
   ["Common Arguments"
@@ -1015,7 +1015,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   (setq tabulated-list-padding 1)
   (tabulated-list-init-header))
 
-(define-transient-command sharper-transient-solution ()
+(transient-define-prefix sharper-transient-solution ()
   "dotnet sln menu"
   ["Actions"
    ("a" "add project to solution" sharper--solution-management-add)
@@ -1129,7 +1129,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   (setq tabulated-list-padding 1)
   (tabulated-list-init-header))
 
-(define-transient-command sharper-transient-project-references ()
+(transient-define-prefix sharper-transient-project-references ()
   "Project references menu"
   ["Actions"
    ("a" "add reference" sharper--project-reference-add)
@@ -1219,7 +1219,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   (setq tabulated-list-padding 1)
   (tabulated-list-init-header))
 
-(define-transient-command sharper-transient-project-packages ()
+(transient-define-prefix sharper-transient-project-packages ()
   "Project packages menu"
   ["Actions"
    ("n" "search NuGet package" sharper--project-package-nuget)
@@ -1265,7 +1265,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
         (sharper--shell-command-to-log command)
         (sharper--project-packages-refresh)))))
 
-(define-infix-argument sharper--option-add-package-name ()
+(transient-define-argument sharper--option-add-package-name ()
   :description "Package name"
   :class 'transient-option
   :shortarg "pn"
@@ -1273,7 +1273,7 @@ After the first call, the list is cached in `sharper--cached-RIDs'."
   :reader (lambda (_prompt _initial-input _history)
             (read-string "Package name: ")))
 
-(define-transient-command sharper-transient-add-package ()
+(transient-define-prefix sharper-transient-add-package ()
   "dotnet add package  menu"
   ["Common Arguments"
    (sharper--option-add-package-name)
