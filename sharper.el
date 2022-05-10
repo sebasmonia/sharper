@@ -1377,7 +1377,8 @@ Format of the returned data is (PackageId . [PackageId Verified Tags Versions-Li
                                       ?o (concat "--version " version)))
          ;; Wanna keep around this buffer's name to close
          ;; it after adding the package
-         (nuget-buffer-name (buffer-name)))
+         (nuget-buffer-name (buffer-name))
+         (project-path sharper--project-path))
     (when (yes-or-no-p prompt-text)
       ;; TODO: project-path should be prompted it nil
       (sharper--log-command "Add project package" command)
@@ -1386,7 +1387,7 @@ Format of the returned data is (PackageId . [PackageId Verified Tags Versions-Li
       ;; this buffer's purpose in life has been fulfilled. Farewell, dear buffer!
       (kill-buffer nuget-buffer-name)
       ;; this will either open or refresh the existing buffer for project packages
-      (sharper--manage-project-packages sharper--project-path))))
+      (sharper--manage-project-packages project-path))))
 
 (provide 'sharper)
 ;;; sharper.el ends here
