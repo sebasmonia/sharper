@@ -503,15 +503,21 @@ Just a facility to make these invocations shorter."
 
 (defun sharper--project-root (&optional path)
   "Get the project root from optional PATH or `default-directory'."
-  ;; NOTE: `project-current' returns two elements in older versions of `project',
-  ;; for example (Git "/the/project/dir"). In newer versions, it returns an extra
-  ;; first element, for example (vc Git "/the/project/dir"). The old code returned
-  ;; `cdr', rather than checking list size let's return the last element, but
-  ;; experience shows this code is fickle...
-  ;; (see older commits for a previous warning on this humble function)
-  (car (last (project-current nil
-                              (or path
-                                  default-directory)))))
+  ;; NOTE: project-root is available from EMACS28, fot the rest a workaround is used
+  ;; based on `project' package internals.
+  (cl-letf ((proj (project-current nil
+                                   (or path
+                                       default-directory))))
+    (if (fboundp 'project-root) ;; EMACS > 27
+        (project-root proj)
+      ;; `project-current' returns two elements in older versions of `project', for example
+      ;; (Git "/the/project/dir"). In newer versions, it returns an extra first element, for
+      ;; example (vc Git "/the/project/dir"). The old code returned `cdr', rather than
+      ;; checking list size let's return the last element, but experience shows this code is
+      ;; fickle... (see older commits for a previous warning on this humble function)
+      (cl-typecase proj
+        (list (car (last proj)))
+        (cons (cdr proj))))))
 
 (defun sharper--filename-proj-or-sln-p (filename)
   "Return non-nil if FILENAME is a project or solution."
