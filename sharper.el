@@ -53,6 +53,10 @@
   "Valid extensions for project files."
   :type '(repeat string))
 
+(defcustom sharper-solution-extensions '("sln" "slnx")
+  "Valid extensions for solution files."
+  :type '(repeat string))
+
 (defcustom sharper-RIDs-URL "https://raw.githubusercontent.com/dotnet/runtime/master/src/libraries/pkg/Microsoft.NETCore.Platforms/runtime.json"
   "URL to fetch the list of Runtime Identifiers for dotnet.  See https://docs.microsoft.com/en-us/dotnet/core/rid-catalog for more info."
   :type 'string)
@@ -523,7 +527,7 @@ Just a facility to make these invocations shorter."
   "Return non-nil if FILENAME is a project or solution."
   (let ((extension (file-name-extension filename)))
     (or
-     (string= "sln" extension)
+     (member extension sharper-solution-extensions)
      (member extension sharper-project-extensions))))
 
 (defun sharper--filename-proj-p (filename)
@@ -544,7 +548,7 @@ Just a facility to make these invocations shorter."
 (defun sharper--filename-sln-p (filename)
   "Return non-nil if FILENAME is a solution."
   (let ((extension (file-name-extension filename)))
-    (string= "sln" extension)))
+    (member extension sharper-solution-extensions)))
 
 (defun sharper--read-solution-or-project ()
   "Offer completion for project or solution files under the current project's root."
